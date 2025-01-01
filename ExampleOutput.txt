@@ -1,0 +1,123 @@
+import csv
+import requests
+import pdfplumber
+from openai import OpenAI
+
+# Instantiating variables
+arr = []  # To hold URLs
+finishedMessages = []  # To store API responses
+pdfs = []  # To hold PDF URLs
+
+# Gets the API key
+def getKey():
+    try:
+        with open("key.txt", "r") as file:
+            key = file.readline().strip()
+        return key
+    except FileNotFoundError:
+        print("File not found!")
+    except PermissionError:
+        print("You don't have permission to access this file.")
+    except IOError as e:
+        print(f"An I/O error occurred: {e}")
+
+# Reads URLs from a CSV file
+def getUrls():
+    try:
+        with open('ExampleSheet.csv', 'r') as file:
+            reader = csv.reader(file)
+            for row in reader:
+                url = row[0].strip()
+                if 'pdf' in url.lower():
+                    pdfs.append(url)
+                else:
+                    arr.append(url)
+    except FileNotFoundError:
+        print("File not found!")
+    except PermissionError:
+        print("You don't have permission to access this file.")
+    except IOError as e:
+        print(f"An I/O error occurred: {e}")
+
+# Fetches text content from a URL
+def fetch_url_content(url):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Raise an error for HTTP issues
+        return response.text
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching URL content: {e}")
+        return None
+
+# Extracts text from a PDF URL
+def extract_pdf_text(pdf_url):
+    try:
+        response = requests.get(pdf_url, stream=True)
+        response.raise_for_status()
+        with open("temp.pdf", "wb") as temp_pdf:
+            temp_pdf.write(response.content)
+        
+        text = ''
+        with pdfplumber.open("temp.pdf") as pdf:
+            for page in pdf.pages:
+                text += page.extract_text()
+        return text
+    except requests.exceptions.RequestException as e:
+        print(f"Error downloading PDF: {e}")
+        return None
+    except Exception as e:
+        print(f"Error reading PDF: {e}")
+        return None
+
+# Calls the OpenAI API with extracted text
+def callApiWithText(text, client):
+    prompt = (
+        'Create a headline and a press release in paragraph format that summarizes the given information. '
+        'Refer to the headline as "Headline" and the press release as "Press Release". '
+        'Make the press releases around 400 words in length. Here is the information: '\
+    ) + text
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=2000
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"Error calling OpenAI API: {e}")
+        return None
+
+# Processes URL content
+def callUrlApi():
+    client = OpenAI(api_key=getKey())
+
+    for url in arr:
+        content = fetch_url_content(url)
+        if content:
+            result = callApiWithText(content, client)
+            if result:
+                finishedMessages.append(result)
+
+# Processes PDF content
+def callPdfApi():
+    client = OpenAI(api_key=getKey())
+
+    for pdf_url in pdfs:
+        content = extract_pdf_text(pdf_url)
+        if content:
+            result = callApiWithText(content, client)
+            if result:
+                finishedMessages.append(result)
+
+# Prints results
+def printResults():
+    print("Results:\n\n")
+    for message in finishedMessages:
+        print(message)
+
+# Main workflow
+getUrls()
+callUrlApi()
+callPdfApi()
+printResults()
