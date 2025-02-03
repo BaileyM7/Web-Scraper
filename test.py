@@ -6,12 +6,15 @@ import pdfplumber
 import requests
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
+from urllib.parse import urlparse
+
 
 # Instantiate variables
 arr = []  # Holds raw URLs
 pdfs = []  # Holds PDFs only
 unavailableTexts = []  # Stores URLs that will be checked again later
 processedResults = []  # List that stores the URL, filename, headline, and press release
+
 
 # Get the OpenAI API key
 def getKey():
@@ -24,6 +27,7 @@ def getKey():
         print("You don't have permission to access this file.")
     except IOError as e:
         print(f"An I/O error occurred: {e}")
+
 
 # Sorts URLs into PDFs and non-PDFs
 def getUrls():
@@ -43,6 +47,7 @@ def getUrls():
     except IOError as e:
         print(f"An I/O error occurred: {e}")
 
+
 # Get text from a static URL
 def getStaticUrlText(url):
     headers = {
@@ -59,21 +64,37 @@ def getStaticUrlText(url):
         print(f"Error fetching URL content: {e}")
         return None
 
-# Get text from a dynamic URL
+
 def getDynamicUrlText(url):
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=False)  # Change headless to False
         context = browser.new_context()
         page = context.new_page()
         try:
             page.goto(url, timeout=60000)
-            page.wait_for_selector("body", timeout=30000)
+
+
+            # Wait for verification page to clear (increase timeout if necessary)
+            page.wait_for_load_state("networkidle", timeout=60000)
+
+
+            # Mimic user interaction
+            page.wait_for_timeout(5000)  # Wait for Cloudflare verification
+            page.mouse.move(100, 100)  # Move mouse to simulate user
+            page.mouse.wheel(0, 1000)  # Scroll down
+            page.wait_for_timeout(3000)  # Additional wait to load content
+
+
+            # Extract page content
             return BeautifulSoup(page.content(), 'html.parser').get_text()
         except Exception as e:
             print(f"Error fetching dynamic content: {e}")
             return None
         finally:
             browser.close()
+
+
+
 
 # Extract text from a PDF
 def getPdfText(pdf_url):
@@ -94,30 +115,45 @@ def getPdfText(pdf_url):
         print(f"Error reading PDF: {e}")
         return None
 
+
 # Clean text from OpenAI API response
 def clean_text(text):
     text = re.sub(r'\*\*', '', text)  # Remove markdown bold (**)
     text = re.sub(r'""', '"', text)  # Remove duplicate double quotes
     text = text.replace("\n", " ")  # Remove newline characters
     text = text.strip()
+    text = text.replace('\"', "")  # Remove ""
+    text = text.replace('Headline:', "")
+    text = text.replace('headline:', "")
+    text = text.replace('Headline', "")
+    text = text.replace('headline', "")
     return text
+
 
 # Call OpenAI API with extracted text
 def callApiWithText(text, client, url):
-    today_date = datetime.today().strftime('%b %d')
-    file_date = datetime.today().strftime('%y%m%d')
-    
+    today = datetime.today()
+    today_date = today.strftime('%b ') + str(today.day)
+    file_date = datetime.today().strftime('%y%m%#d')
+   
     if 'congress.gov' in url:
-        bill_number = url.split("/")[-1]
+        bill_number = urlparse(url).path.rstrip("/").split("/")[-2] if url.endswith("/text") else urlparse(url).path.rstrip("/").split("/")[-1]
         filename = f"$H billintroh-{file_date}-hr{bill_number}"
-        prompt = "Turn this House bill introduction by a member of Congress into a 300-word news story, with a headline, including the bill name and number and introduction date. " + text
+        prompt = f"""Write a 300-word news story based on the introduction of this House bill by a member of Congress.
+                    Follow this structure:\n\n- The headline should begin with '[Representative] has introduced [Bill Name and Number: {bill_number}
+                    and the title of the bill].'\n- Summarize the key details and purpose of the bill in the next paragraph.
+                    The story should have a clear headline that includes the bill name, number. Do not include the introduction date.
+                    \nDo not include quotes. Input data:
+                    [representative] has introduced [bill]. Summary of bill\n""" + text
     elif url.endswith(".pdf"):
         filename = "NA"
-        prompt = "Summarize the report by first checking for an executive summary. If it has one, use that. If not, look for a summary instead. If neither is available, use the introduction. Summarize that data and include which companies are involved with this report. " + text
+        prompt = """Summarize the report by first checking for an executive summary. If it has one, use that. If not, look for a
+                summary instead. If neither is available, use the introduction. Summarize that data and include which companies are involved
+                with this report. Do not include quotes.""" + text
     else:
         filename = "NA"
-        prompt = "Create a headline and a press release in paragraph format that summarizes the given information. " + text
-    
+        prompt = "Create a headline and a press release in paragraph format that summarizes the given information. Do not include quotes." + text
+   
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -126,23 +162,29 @@ def callApiWithText(text, client, url):
         )
         result = response.choices[0].message.content
         headline, press_release = result.split('\n', 1)
+        # print(headline)
         headline = clean_text(headline)
         press_release = clean_text(press_release)
-        press_release = f"WASHINGTON, {today_date} -- {press_release}"
+        press_release = f"WASHINGTON, {today_date}. -- {press_release}"
         return filename, headline, press_release
     except Exception as e:
         print(f"Error calling OpenAI API: {e}")
         return "NA", "", ""
 
+
 # Process URLs
 def callUrlApi():
     client = OpenAI(api_key=getKey())
     for url in arr:
+        if 'congress.gov' in url and not url.endswith('/text'):
+            url += '/text'
         content = getDynamicUrlText(url) if 'congress.gov' in url else getStaticUrlText(url)
         if content:
             filename, headline, press_release = callApiWithText(content, client, url)
+            # print(content)
             if headline and press_release:
                 processedResults.append((url, filename, headline, press_release))
+
 
 # Write results to CSV
 def writeResultsToCsv():
@@ -152,15 +194,22 @@ def writeResultsToCsv():
         for url, filename, headline, message in processedResults:
             writer.writerow([url, filename, headline, message])
 
+
 # Run all functions
 getUrls()
 callUrlApi()
 writeResultsToCsv()
 
 
-# opening should look like this WASHINGTON, Feb. 2 -- NOT Feb 02
-# clean up code to not have any "" or "headline"
-# shouldnt say press release / headline in the load
+
+
 # template should look like this for the bills: [representative] has introduced [bill]. Summary of bill
 # example
-# Rep. Griffith, H. Morgan [R-VA-9] has introduced H.R.27 - HALT Fentanyl Act. 
+# Rep. Griffith, H. Morgan [R-VA-9] has introduced H.R.27 - HALT Fentanyl Act.
+
+
+"""
+https://www.congress.gov/bill/118th-congress/house-bill/10564
+https://www.congress.gov/bill/118th-congress/house-bill/10259
+"""
+
