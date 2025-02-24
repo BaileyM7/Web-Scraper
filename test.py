@@ -120,7 +120,7 @@ def getPdfText(pdf_url):
 def clean_text(text):
     text = re.sub(r'\*\*', '', text)  # Remove markdown bold (**)
     text = re.sub(r'""', '"', text)  # Remove duplicate double quotes
-    text = text.replace("\n", " ")  # Remove newline characters
+    # text = text.replace("\n", " ")  # Remove newline characters
     text = text.strip()
     text = text.replace('\"', "")  # Remove ""
     text = text.replace('Headline:', "")
@@ -139,12 +139,19 @@ def callApiWithText(text, client, url):
     if 'congress.gov' in url:
         bill_number = urlparse(url).path.rstrip("/").split("/")[-2] if url.endswith("/text") else urlparse(url).path.rstrip("/").split("/")[-1]
         filename = f"$H billintroh-{file_date}-hr{bill_number}"
-        prompt = f"""Write a 300-word news story based on the introduction of this House bill by a member of Congress.
-                    Follow this structure:\n\n- The headline should begin with '[Representative] has introduced [Bill Name and Number: {bill_number}
-                    and the title of the bill].'\n- Summarize the key details and purpose of the bill in the next paragraph.
-                    The story should have a clear headline that includes the bill name, number. Do not include the introduction date.
-                    \nDo not include quotes. Input data:
-                    [representative] has introduced [bill]. Summary of bill\n""" + text
+
+        prompt = f"""Write a 300-word news story about the introduction of this House bill by a member of Congress. 
+
+        Follow these guidelines:
+        - The headline should start with only the government representative's last name, followed by 'introduces [Bill Name and Number: {bill_number}]' and the title of the bill.
+        - The first paragraph should summarize the key details and purpose of the bill.
+        - The story should be structured in paragraph format with a clear and informative flow.
+        - Do not include the bill's introduction date.
+        - Do not include quotes.
+
+        Input data:
+        Representative [Representative] has introduced [Bill]. Summary of bill:\n""" + text
+
     elif url.endswith(".pdf"):
         filename = "NA"
         prompt = """Summarize the report by first checking for an executive summary. If it has one, use that. If not, look for a
