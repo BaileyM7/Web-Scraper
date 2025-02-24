@@ -148,7 +148,8 @@ def callApiWithText(text, client, url):
         - The story should be structured in paragraph format with a clear and informative flow.
         - Do not include the bill's introduction date.
         - Do not include quotes.
-
+        - In the first paragraph, refer to the member of Congress by the first letter of their party affiliation and full name of their corresponding state in this format: [Representative] [Party]-[State].
+        
         Input data:
         Representative [Representative] has introduced [Bill]. Summary of bill:\n""" + text
 
@@ -220,3 +221,6 @@ https://www.congress.gov/bill/118th-congress/house-bill/10564
 https://www.congress.gov/bill/118th-congress/house-bill/10259
 """
 
+# figure out which api model is best
+# make sure 20 outputs all the same in the same format
+# figure out api costs
