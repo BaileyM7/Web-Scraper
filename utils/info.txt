@@ -1,0 +1,21 @@
+	"Write a 300-word news story about the introduction of this House bill by a member of Congress. 
+
+        Follow these guidelines:
+        - The headline should start with only the government representative's last name, followed by 'introduces [Bill Name and Number: {bill_number}]' and the title of the bill.
+        - The first paragraph should summarize the key details and purpose of the bill.
+        - The story should be structured in paragraph format with a clear and informative flow.
+        - Do not include the bill's introduction date.
+        - Do not include quotes.
+        - In the first paragraph, refer to the member of Congress by the first letter of their party affiliation and full name of their corresponding state in this format: [Representative] [Party]-[State].
+        
+        Input data:
+        Representative [Representative] has introduced [Bill]. Summary of bill:\n"""""" + text"
+HED	"If House: The headline should start with Rep. then his last name, followed by Introduces, then Bill Name
+(no bill number in hed)"
+	"If Senate: The headline should start with Rep. then his last name, followed by Introduces, then Bill Name
+(no bill number in hed)"
+STORY TEXT	If House: The first paragraph, should start with Rep. First name/Last name then a comma, then the single first letter of political party affiliation followed by a dash then full state like this: [Rep. xxx, [Party]-[State].
+	If Senate: The first paragraph, should start with Sen. First name/Last name then a comma, then the single first letter of political party affiliation followed by a dash then full state like this: [Sen. xxx, [Party]-[State].
+BOTTOM OF STORY TEXT	"The last paragraph of the loaded material should show this: 
+* * # * *
+Primary source of information: link showing in column A"

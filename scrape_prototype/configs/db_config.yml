@@ -1,0 +1,5 @@
+dbhost: localhost
+dbport: 3306
+dbuser: root
+dbpasswd: 4312JavinsDrive
+leadsfield: leads
