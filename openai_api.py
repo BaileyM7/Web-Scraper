@@ -26,7 +26,7 @@ def clean_text(text):
 def callApiWithText(text, client, url):
     """Processes extracted text through OpenAI's API to generate headlines and press releases."""
     today = datetime.today()
-    today_date = today.strftime('%b ') + str(today.day)
+    today_date = today.strftime('%b. ') + str(today.day)
     file_date = datetime.today().strftime('%y%m%#d')
 
     if 'congress.gov' in url:
@@ -72,7 +72,7 @@ def callApiWithText(text, client, url):
         headline, press_release = result.split('\n', 1)
         headline = clean_text(headline)
         press_release = clean_text(press_release)
-        press_release = f"WASHINGTON, {today_date}. -- {press_release}"
+        press_release = f"\nWASHINGTON, {today_date} -- {press_release}\n"
         return filename, headline, press_release
     except Exception as e:
         print(f"Error calling OpenAI API: {e}")

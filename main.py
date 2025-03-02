@@ -14,7 +14,7 @@ def callUrlApi():
         if content:
             filename, headline, press_release = callApiWithText(content, client, url)
             if headline and press_release:
-                press_release += f"\n* * # * * \n {url}"
+                press_release += f"\n* * # * * \n\nPrimary source of information: {url}"
                 processedResults.append((url, filename, headline, press_release))
 
 def writeResultsToCsv():

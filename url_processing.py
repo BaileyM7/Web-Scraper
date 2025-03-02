@@ -55,8 +55,8 @@ def getDynamicUrlText(url):
         context = browser.new_context()
         page = context.new_page()
         try:
-            page.goto(url, timeout=100)
-            page.wait_for_load_state("networkidle", timeout=60000)
+            page.goto(url, timeout=20000)
+            page.wait_for_load_state("networkidle", timeout=20000)
             page.wait_for_timeout(5000)
             page.mouse.move(100, 100)
             page.mouse.wheel(0, 1000)
