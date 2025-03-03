@@ -64,7 +64,7 @@ def callApiWithText(text, client, url):
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=2000
         )
@@ -77,3 +77,19 @@ def callApiWithText(text, client, url):
     except Exception as e:
         print(f"Error calling OpenAI API: {e}")
         return "NA", "", ""
+
+
+
+"""
+The bill (H.R. 128) introduced on Jan. 3, 2025, has eight co-sponsors: Rep. Nehls, Troy E. [R-TX-22]...01/09/2025; Rep. Miller, Mary E. [R-IL-15]...01/09/2025; Rep. Donalds, Byron [R-FL-19]...01/09/2025; Rep. Ogles, Andrew [R-TN-5]...01/09/2025; Rep. Moore, Barry [R-AL-1]...01/09/2025; Rep. Burchett, Tim [R-TN-2]...01/09/2025; Rep. Luna, Anna Paulina [R-FL-13]...01/09/2025; Rep. Van Duyne, Beth [R-TX-24]...01/14/2025;.
+The bill (H.R. 129) was introduced on Jan. 3, 2025. 
+
+- Bill number
+- date the bill was introduced
+- cosponsers?
+-months that are 5 letters or less must be spelled out in full (March NOT Mar.)
+
+- put all of this at the bottom 
+- check the link for cosponsors: https://www.congress.gov/bill/119th-congress/house-bill/134/cosponsors
+-make two seperate sheets (one for house and one for senate)
+"""

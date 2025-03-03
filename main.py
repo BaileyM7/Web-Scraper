@@ -21,7 +21,7 @@ def writeResultsToCsv():
     """Writes processed results to a CSV file."""
     with open('csv/output.csv', 'w', newline='', encoding='utf-8') as csvfile:
         writer = csv.writer(csvfile, delimiter='|', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        writer.writerow(['URL', 'Filename', 'Headline', 'Press Release'])
+        writer.writerow(['URL', 'Filename', 'Headline', 'Story'])
         for url, filename, headline, message in processedResults:
             writer.writerow([url, filename, headline, message])
 
