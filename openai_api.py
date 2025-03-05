@@ -23,45 +23,99 @@ def clean_text(text):
     text = text.strip().replace('\"', "").replace('Headline:', "").replace('headline:', "")
     return text
 
-def callApiWithText(text, client, url):
-    """Processes extracted text through OpenAI's API to generate headlines and press releases."""
+def callApiWithText(text, cosponsorContent, client, url, is_senate):
+    """
+    Processes extracted text through OpenAI's API to generate headlines 
+    and press releases, building either House or Senate style prompts and filenames.
+    """
     today = datetime.today()
-    today_date = today.strftime('%b. ') + str(today.day)
-    file_date = datetime.today().strftime('%y%m%#d')
+    
+    # Decide how to handle month abbreviations (<=5 letters => spelled out, else abbreviate)
+    month = today.strftime('%B') 
+    short_month = today.strftime('%b')
+    formatted_month = month if len(month) <= 5 else short_month + "."
 
+    today_date = f"{formatted_month} {today.day}"
+    file_date = today.strftime('%y%m%#d')
+
+    # Extract final path component for the bill number
+    # For a House link like: https://www.congress.gov/bill/119th-congress/house-bill/128/text
+    # the second to last piece is "128"
+    # For a Senate link like: https://www.congress.gov/bill/119th-congress/senate-bill/823/text
+    bill_number = urlparse(url).path.rstrip("/").split("/")[-2] if url.endswith("/text") \
+                  else urlparse(url).path.rstrip("/").split("/")[-1]
+    
     if 'congress.gov' in url:
-        bill_number = urlparse(url).path.rstrip("/").split("/")[-2] if url.endswith("/text") else urlparse(url).path.rstrip("/").split("/")[-1]
-        filename = f"$H billintroh-{file_date}-hr{bill_number}"
-        prompt = f"""Write a 300-word news story about this House bill, following these exact formatting rules:
+        # Different filename & prompt depending on House or Senate
+        if is_senate:
+            # Senate
+            filename = f"$S billintros-{file_date}-s{bill_number}"
+            prompt = f"""
+            Write a 300-word news story about this Senate bill, following these exact formatting rules:
+            
             Headline:
-            - Starts with "Rep. [Last Name] Introduces [Bill Name]" 
+            - Starts with "Sen. [Last Name] Introduces [Bill Name]" 
             (Do not include the bill number in the headline.)
 
-             First Paragraph
-            - Starts with Rep. [First Name] [Last Name], [Party]-[State],"
-            - Example: Rep. John Smith, D-California,"
+            First Paragraph
+            - Starts with "Sen. [First Name] [Last Name], [Party]-[State],"
             - Clearly summarize the key details and purpose of the bill.
 
-             Body Structure
+            Body Structure
             - Use structured paragraphs with an informative flow
             - Do not include quotes.
             - Provide context such as:
-            - Why the bill was introduced.
-            - Its potential impact.
-            - Relevant background details.
+              * Why the bill was introduced.
+              * Its potential impact.
+              * Relevant background details.
 
             Bill Details  
-            Representative [Representative] has introduced [Bill Name].  
-            Summary of the bill:  
+            Senator [Senator] has introduced [Bill Name]. 
+            Summary of the bill:
+
+            """ + text
+        else:
+            # House
+            filename = f"$H billintroh-{file_date}-hr{bill_number}"
+            prompt = f"""
+            Write a 300-word news story about this House bill, following these exact formatting rules:
+
+            Headline:
+            - Starts with "Rep. [Last Name] Introduces [Bill Name]"
+            (Do not include the bill number in the headline.)
+
+            First Paragraph
+            - Starts with "Rep. [First Name] [Last Name], [Party]-[State],"
+            - Clearly summarize the key details and purpose of the bill.
+
+            Body Structure
+            - Use structured paragraphs with an informative flow
+            - Do not include quotes.
+            - Provide context such as:
+              * Why the bill was introduced.
+              * Its potential impact.
+              * Relevant background details.
+
+            Bill Details
+            Representative [Representative] has introduced [Bill Name].
+            Summary of the bill:
+
             """ + text
 
     elif url.endswith(".pdf"):
         filename = "NA"
-        prompt = """Summarize this report, prioritizing an executive summary. If unavailable, summarize the introduction.""" + text
+        prompt = (
+            "Summarize this report, prioritizing an executive summary. "
+            "If unavailable, summarize the introduction. " + text
+        )
     else:
         filename = "NA"
-        prompt = "Create a headline and press release summarizing the given information. Do not include quotes." + text
+        prompt = (
+            "Create a headline and press release summarizing the given information. "
+            "Do not include quotes." + text
+        )
 
+    # Call the model
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -69,27 +123,51 @@ def callApiWithText(text, client, url):
             max_tokens=2000
         )
         result = response.choices[0].message.content
+        # Attempt to split the result so that the first line is the headline
+        # and everything else is the press release
         headline, press_release = result.split('\n', 1)
         headline = clean_text(headline)
         press_release = clean_text(press_release)
         press_release = f"\nWASHINGTON, {today_date} -- {press_release}\n"
+
+        # Second API call for cosponsor summary
+        # Notice the difference in the name (H.R. vs S.) is not strictly coded here,
+        # but you could adapt. Below uses "H.R. {bill_number}" by default if is_senate=False.
+        # Or you might parse more carefully and do "S. {bill_number}" if is_senate=True.
+        if is_senate:
+            cosponsor_bill_prefix = f"S. {bill_number}"
+        else:
+            cosponsor_bill_prefix = f"H.R. {bill_number}"
+
+        cosponsor_prompt = f"""
+        Extract and summarize the cosponsors of the bill identified by its number (e.g., {cosponsor_bill_prefix}) 
+        and introduction date. 
+
+        If there are cosponsors, format the output strictly as follows:
+
+        'The bill ({cosponsor_bill_prefix}) introduced on [Introduction Date] has [Total Number] co-sponsors: 
+        [Rep. Last Name, First Name] [Party-State-District]...[Date Cosponsored]; [repeat for each cosponsor].'
+
+        If there are **no cosponsors**, format the output as follows:
+        'The bill ({cosponsor_bill_prefix}) was introduced on [Introduction Date].'
+
+        Ensure the format is exact, and do not include any additional information beyond what is specified.
+
+        Cosponsor data:
+        """ + cosponsorContent
+
+        cosponsor_response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": cosponsor_prompt}],
+            max_tokens=1000
+        )
+        cosponsor_summary = clean_text(cosponsor_response.choices[0].message.content)
+
+        # Append cosponsor summary to the press release
+        press_release += f"\n{cosponsor_summary}\n"
+
         return filename, headline, press_release
+    
     except Exception as e:
         print(f"Error calling OpenAI API: {e}")
         return "NA", "", ""
-
-
-
-"""
-The bill (H.R. 128) introduced on Jan. 3, 2025, has eight co-sponsors: Rep. Nehls, Troy E. [R-TX-22]...01/09/2025; Rep. Miller, Mary E. [R-IL-15]...01/09/2025; Rep. Donalds, Byron [R-FL-19]...01/09/2025; Rep. Ogles, Andrew [R-TN-5]...01/09/2025; Rep. Moore, Barry [R-AL-1]...01/09/2025; Rep. Burchett, Tim [R-TN-2]...01/09/2025; Rep. Luna, Anna Paulina [R-FL-13]...01/09/2025; Rep. Van Duyne, Beth [R-TX-24]...01/14/2025;.
-The bill (H.R. 129) was introduced on Jan. 3, 2025. 
-
-- Bill number
-- date the bill was introduced
-- cosponsers?
--months that are 5 letters or less must be spelled out in full (March NOT Mar.)
-
-- put all of this at the bottom 
-- check the link for cosponsors: https://www.congress.gov/bill/119th-congress/house-bill/134/cosponsors
--make two seperate sheets (one for house and one for senate)
-"""

@@ -5,15 +5,22 @@ from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 from urllib.parse import urlparse
 
-# Instantiate variables
-arr = []  # Holds raw URLs
-pdfs = []  # Holds PDFs only
+arr = []      # Holds raw URLs
+pdfs = []     # Holds PDFs only
 invalidArr = []
+is_senate = True
+input_csv = "csv/senate.csv"  # Or "csv/house.csv" if you like.
 
 def getUrls():
-    """Sorts URLs into PDFs and non-PDFs from a CSV file."""
+    """Loads URLs from the specified CSV file and sets flags accordingly."""
+    global is_senate, input_csv
+
+    # If the CSV filename contains 'senate', we set is_senate = True
+    if 'senate' in input_csv.lower():
+        is_senate = True
+
     try:
-        with open('csv/tester.csv', 'r') as urls:
+        with open(input_csv, 'r', encoding='utf-8') as urls:
             reader = csv.reader(urls)
             for row in reader:
                 url = row[0].strip()
@@ -49,7 +56,7 @@ def getStaticUrlText(url):
         return None
 
 def getDynamicUrlText(url):
-    """Extracts text from a dynamically loaded web page."""
+    """Extracts text from a dynamically loaded web page using Playwright."""
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=False)
         context = browser.new_context()
