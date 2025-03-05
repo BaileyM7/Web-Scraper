@@ -8,8 +8,8 @@ from urllib.parse import urlparse
 arr = []      # Holds raw URLs
 pdfs = []     # Holds PDFs only
 invalidArr = []
-is_senate = True
-input_csv = "csv/senate.csv"  # Or "csv/house.csv" if you like.
+is_senate = False
+input_csv = "csv/house.csv"  # Or "csv/senate.csv" if you like.
 
 def getUrls():
     """Loads URLs from the specified CSV file and sets flags accordingly."""
@@ -79,6 +79,7 @@ def getDynamicUrlText(url):
             
         except Exception as e:
             print(f"Error fetching dynamic content: {e}")
+            url = url.replace("/text", "").replace("/cosponsors", "")
             invalidArr.append(url)
             return None
         finally:
@@ -102,3 +103,4 @@ def getPdfText(pdf_url):
     except Exception as e:
         print(f"Error reading PDF: {e}")
         return None
+

@@ -29,14 +29,15 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate):
     and press releases, building either House or Senate style prompts and filenames.
     """
     today = datetime.today()
-    
+
     # Decide how to handle month abbreviations (<=5 letters => spelled out, else abbreviate)
     month = today.strftime('%B') 
     short_month = today.strftime('%b')
     formatted_month = month if len(month) <= 5 else short_month + "."
 
-    today_date = f"{formatted_month} {today.day}"
-    file_date = today.strftime('%y%m%#d')
+    # Use '%d' for a zero-padded day
+    today_date = f"{formatted_month} {today.strftime('%d')}"
+    file_date = today.strftime('%y%m%d')
 
     # Extract final path component for the bill number
     # For a House link like: https://www.congress.gov/bill/119th-congress/house-bill/128/text
@@ -49,7 +50,7 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate):
         # Different filename & prompt depending on House or Senate
         if is_senate:
             # Senate
-            filename = f"$S billintros-{file_date}-s{bill_number}"
+            filename = f"$H billintros-{file_date}-s{bill_number}"
             prompt = f"""
             Write a 300-word news story about this Senate bill, following these exact formatting rules:
             
@@ -171,3 +172,10 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate):
     except Exception as e:
         print(f"Error calling OpenAI API: {e}")
         return "NA", "", ""
+
+
+"""
+senate has $H
+filename needs the 6 digit date
+get rid of #d for both house and senate
+"""
