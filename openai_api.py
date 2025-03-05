@@ -23,6 +23,15 @@ def clean_text(text):
     text = text.strip().replace('\"', "").replace('Headline:', "").replace('headline:', "")
     return text
 
+def get_date_from_text(text):
+    pattern = r"Introduced in (?:Senate|House) \((\d{2})/(\d{2})/(\d{4})\)"
+    
+    match = re.search(pattern, text)
+    if match:
+        mm, dd, yyyy = match.groups()
+        return f"{yyyy[-2:]}{mm}{dd}"
+    return None
+
 def callApiWithText(text, cosponsorContent, client, url, is_senate):
     """
     Processes extracted text through OpenAI's API to generate headlines 
@@ -36,8 +45,8 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate):
     formatted_month = month if len(month) <= 5 else short_month + "."
 
     # Use '%d' for a zero-padded day
-    today_date = f"{formatted_month} {today.strftime('%d')}"
-    file_date = today.strftime('%y%m%d')
+    today_date = f"{formatted_month} {today.strftime('%-d')}"
+    file_date = get_date_from_text(text)
 
     # Extract final path component for the bill number
     # For a House link like: https://www.congress.gov/bill/119th-congress/house-bill/128/text
