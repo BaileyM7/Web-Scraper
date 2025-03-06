@@ -3,21 +3,14 @@ import requests
 import pdfplumber
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
-from urllib.parse import urlparse
 
 arr = []      # Holds raw URLs
 pdfs = []     # Holds PDFs only
 invalidArr = []
-is_senate = False
-input_csv = "csv/house.csv"  # Or "csv/senate.csv" if you like.
 
-def getUrls():
+def getUrls(input_csv):
     """Loads URLs from the specified CSV file and sets flags accordingly."""
-    global is_senate, input_csv
-
-    # If the CSV filename contains 'senate', we set is_senate = True
-    if 'senate' in input_csv.lower():
-        is_senate = True
+    global arr, pdfs, invalidArr
 
     try:
         with open(input_csv, 'r', encoding='utf-8') as urls:
@@ -103,4 +96,3 @@ def getPdfText(pdf_url):
     except Exception as e:
         print(f"Error reading PDF: {e}")
         return None
-

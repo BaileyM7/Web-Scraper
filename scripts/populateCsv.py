@@ -52,13 +52,13 @@ def updateLastFoundAndAppendToCSV(file_path, house_number, senate_number):
         return
     
     if house_number > last_house:
-        with open("../csv/house.csv", 'a', newline='') as csvfile:
+        with open("csv/house.csv", 'a', newline='') as csvfile:
             csv_writer = csv.writer(csvfile)
             for num in range(last_house + 1, house_number + 1):
                 csv_writer.writerow([f'https://www.congress.gov/bill/119th-congress/house-bill/{num}'])
 
     if senate_number > last_senate:
-        with open("../csv/senate.csv", 'a', newline='') as csvfile:
+        with open("csv/senate.csv", 'a', newline='') as csvfile:
             csv_writer = csv.writer(csvfile)
             for num in range(last_senate + 1, senate_number + 1):
                 csv_writer.writerow([f'https://www.congress.gov/bill/119th-congress/senate-bill/{num}'])

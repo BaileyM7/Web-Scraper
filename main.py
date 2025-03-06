@@ -1,8 +1,17 @@
-from url_processing import getUrls, getStaticUrlText, getDynamicUrlText, arr, invalidArr, is_senate, input_csv
+import sys
+from url_processing import getUrls, getStaticUrlText, getDynamicUrlText, arr, invalidArr
 from openai_api import getKey, callApiWithText, OpenAI
 import csv
 
 processedResults = []  # List to store results
+
+# Determine House or Senate from command-line arguments
+if len(sys.argv) < 2 or sys.argv[1] not in ['h', 's']:
+    print("Usage: python main.py h | s")
+    sys.exit(1)
+
+is_senate = sys.argv[1] == 's'
+input_csv = "csv/senate.csv" if is_senate else "csv/house.csv"
 
 def callUrlApi():
     """Processes URLs, extracts content, and generates headlines via OpenAI."""
@@ -37,15 +46,14 @@ def writeResultsToCsv():
 
 def writeUnusedUrlsToCsv():
     """Overwrites the same input CSV (house or senate) with the contents of invalidArr."""
-    # Use input_csv from url_processing
     with open(input_csv, 'w', newline='', encoding='utf-8') as csvfile:
         writer = csv.writer(csvfile, delimiter='|', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         for url in invalidArr:
             writer.writerow([url])
 
 if __name__ == "__main__":
-    # This sets up arr[] and also sets is_senate
-    getUrls()
+    # Pass is_senate and input_csv to getUrls dynamically
+    getUrls(input_csv)
 
     callUrlApi()
     writeResultsToCsv()
@@ -53,3 +61,11 @@ if __name__ == "__main__":
     # Print invalid links for debugging
     print(invalidArr)
     writeUnusedUrlsToCsv()
+
+
+"""
+process of events:
+1) run python3 scripts/populateCsv.py
+2) For house: run % python3 main.py h 
+2) For senate: run % python3 main.py s
+"""
