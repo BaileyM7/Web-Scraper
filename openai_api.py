@@ -2,6 +2,7 @@ import re
 from datetime import datetime
 from openai import OpenAI
 from urllib.parse import urlparse
+import platform
 
 def getKey():
     """Retrieves the OpenAI API key from a file."""
@@ -45,7 +46,9 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate):
     formatted_month = month if len(month) <= 5 else short_month + "."
 
     # Use '%d' for a zero-padded day
-    today_date = f"{formatted_month} {today.strftime('%-d')}"
+    day_format = '%-d' if platform.system() != 'Windows' else '%#d' # had to add this because i run the program on both mac and windows systems (very odd)
+
+    today_date = f"{formatted_month} {today.strftime(day_format)}"
     file_date = get_date_from_text(text)
 
     # Extract final path component for the bill number
