@@ -66,8 +66,8 @@ if __name__ == "__main__":
 """
 process of events:
 1) run python3 scripts/populateCsv.py
-2) For house: run % python3 main.py h 
-2) For senate: run % python3 main.py s
+2) For house: run %  caffeinate -d python3 main.py h 
+2) For senate: run % caffeinate -d python3 main.py s 
 
 Estimated Run Time: 30 seconds per url processed (only processed if it has text)
 """
