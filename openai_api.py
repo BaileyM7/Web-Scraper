@@ -133,7 +133,7 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate):
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=2000
+            max_tokens= 2500
         )
         result = response.choices[0].message.content
         # Attempt to split the result so that the first line is the headline
@@ -154,25 +154,35 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate):
 
         cosponsor_prompt = f"""
         Extract and summarize the cosponsors of the bill identified by its number (e.g., {cosponsor_bill_prefix}) 
-        and introduction date. 
+        and introduction date.
 
-        If there are cosponsors, format the output strictly as follows:
+        Strict Formatting Requirements:
+        - Each cosponsor must follow this exact format:  
+        `[Rep. Last Name, First Name] [Party-State-District]...[Date Cosponsored]`
+        - The `...` (three dots) must always separate the district information from the date.
+        - The output should be a single sentence listing all cosponsors separated by semicolons (`;`).
 
-        'The bill ({cosponsor_bill_prefix}) introduced on [Introduction Date] has [Total Number] co-sponsors: 
-        [Rep. Last Name, First Name] [Party-State-District]...[Date Cosponsored]; [repeat for each cosponsor].'
+        Output Examples:
+        Correct:
+        'The bill ({cosponsor_bill_prefix}) introduced on [Introduction Date] has [Total Number] co-sponsors:  
+        Rep. Smith, John [R-NY-5]...01/22/2025; Rep. Doe, Jane [D-CA-10]...01/24/2025.'
 
-        If there are **no cosponsors**, format the output as follows:
+        Incorrect:
+        - Missing `...` separator (`Rep. Smith, John [R-NY-5] 01/22/2025`)
+
+        If there are no cosponsors, format the output exactly as:
         'The bill ({cosponsor_bill_prefix}) was introduced on [Introduction Date].'
 
-        Ensure the format is exact, and do not include any additional information beyond what is specified.
+        Ensure the format is **exact**, with no extra information or missing components.
 
         Cosponsor data:
         """ + cosponsorContent
 
+
         cosponsor_response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": cosponsor_prompt}],
-            max_tokens=1000
+            max_tokens=2500
         )
         cosponsor_summary = clean_text(cosponsor_response.choices[0].message.content)
 
