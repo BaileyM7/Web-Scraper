@@ -71,7 +71,7 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate):
             (Do not include the bill number in the headline.)
 
             First Paragraph
-            - Starts with "Sen. [First Name] [Last Name], [Party]-[State],"
+            - Starts with "Sen. [First Name] [Last Name], [Party]-[State Postal Codes],"
             - Clearly summarize the key details and purpose of the bill.
 
             Body Structure
@@ -98,7 +98,7 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate):
             (Do not include the bill number in the headline.)
 
             First Paragraph
-            - Starts with "Rep. [First Name] [Last Name], [Party]-[State],"
+            - Starts with "Rep. [First Name] [Last Name], [Party]-[State Postal Codes],"
             - Clearly summarize the key details and purpose of the bill.
 
             Body Structure
@@ -157,34 +157,36 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate):
         and introduction date.
 
         Strict Formatting Requirements:
-        - Each cosponsor must follow this exact format:  
+        - If there are **fewer than 101** cosponsors, list each one in this exact format:
         `[Rep. Last Name, First Name] [Party-State-District]...[Date Cosponsored]`
         - The `...` (three dots) must always separate the district information from the date.
-        - The output should be a single sentence listing all cosponsors separated by semicolons (`;`).
+        - The output must be a single sentence listing all cosponsors separated by semicolons (`;`).
 
-        Output Examples:
-        Correct:
+        - If there are **101 or more** cosponsors, return this exact sentence:
+        'The bill ({cosponsor_bill_prefix}) introduced on [Introduction Date] has [Total Number] co-sponsors.'
+
+        Examples:
+         **Correct when <101 cosponsors:**  
         'The bill ({cosponsor_bill_prefix}) introduced on [Introduction Date] has [Total Number] co-sponsors:  
         Rep. Smith, John [R-NY-5]...01/22/2025; Rep. Doe, Jane [D-CA-10]...01/24/2025.'
 
-        Incorrect:
-        - Missing `...` separator (`Rep. Smith, John [R-NY-5] 01/22/2025`)
+         **Correct when ≥101 cosponsors:**  
+        'The bill ({cosponsor_bill_prefix}) introduced on [Introduction Date] has [Total Number] co-sponsors.'
 
-        If there are no cosponsors, format the output exactly as:
+        - If there are **no cosponsors**, format the output exactly as:
         'The bill ({cosponsor_bill_prefix}) was introduced on [Introduction Date].'
 
-        Ensure the format is **exact**, with no extra information or missing components.
+        Ensure the format is exact, with no extra information or missing components.
 
         Cosponsor data:
         """ + cosponsorContent
-
 
         cosponsor_response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": cosponsor_prompt}],
             max_tokens=5000
         )
-        cosponsor_summary = clean_text(cosponsor_response.choices[0].message.content).strip("'")
+        cosponsor_summary = re.sub(r'\s+', ' ', cosponsor_response.choices[0].message.content).strip("'")
 
         # Append cosponsor summary to the press release
         press_release += f"\n{cosponsor_summary}\n"
