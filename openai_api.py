@@ -182,9 +182,9 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate):
         cosponsor_response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": cosponsor_prompt}],
-            max_tokens=2500
+            max_tokens=5000
         )
-        cosponsor_summary = clean_text(cosponsor_response.choices[0].message.content)
+        cosponsor_summary = clean_text(cosponsor_response.choices[0].message.content).strip("'")
 
         # Append cosponsor summary to the press release
         press_release += f"\n{cosponsor_summary}\n"
