@@ -8,6 +8,12 @@ arr = []      # Holds raw URLs
 pdfs = []     # Holds PDFs only
 invalidArr = []
 
+def add_invalid_url(url):
+    # Cleans and adds a unique invalid URL to invalidArr.
+    cleaned_url = url.replace("/text", "").replace("/cosponsors", "")
+    if cleaned_url not in invalidArr:
+        invalidArr.append(cleaned_url)
+
 def getUrls(input_csv):
     """Loads URLs from the specified CSV file and sets flags accordingly."""
     global arr, pdfs, invalidArr
@@ -40,40 +46,54 @@ def getStaticUrlText(url):
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
         if "has not been received" in soup.get_text():
-            invalidArr.append(url)
+            add_invalid_url(url)
             return None
         else:
             return soup.get_text()
     except requests.exceptions.RequestException as e:
         print(f"Error fetching URL content: {e}")
         return None
-
+    
 def getDynamicUrlText(url):
-    """Extracts text from a dynamically loaded web page using Playwright."""
+    """Extracts text from a dynamically loaded web page using Playwright (stealth headless mode)."""
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
-        context = browser.new_context()
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--disable-blink-features=AutomationControlled"]
+        )
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            viewport={"width": 1920, "height": 1080},
+            locale="en-US",
+            java_script_enabled=True
+        )
         page = context.new_page()
         try:
             page.goto(url, timeout=20000)
-            page.wait_for_load_state("networkidle", timeout=20000)
-            page.wait_for_timeout(5000)
+            try:
+                page.wait_for_selector("body", timeout=15000)
+            except:
+                print("Main selector did not load — marking as invalid")
+                add_invalid_url(url)
+                return None
+
+            # Add human-like interaction
             page.mouse.move(100, 100)
             page.mouse.wheel(0, 1000)
+            page.keyboard.press("ArrowDown")
             page.wait_for_timeout(3000)
 
             text = BeautifulSoup(page.content(), 'html.parser').get_text()
 
             if "has not been received" in text:
-                invalidArr.append(url)
+                add_invalid_url(url)
                 return None
             else:
                 return text
-            
+
         except Exception as e:
             print(f"Error fetching dynamic content: {e}")
-            url = url.replace("/text", "").replace("/cosponsors", "")
-            invalidArr.append(url)
+            add_invalid_url(url)
             return None
         finally:
             browser.close()
