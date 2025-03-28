@@ -21,10 +21,11 @@ def callUrlApi():
         if 'congress.gov' in url and not url.endswith('/text'):
             url += '/text'
         content = getDynamicUrlText(url) if 'congress.gov' in url else getStaticUrlText(url)
-        cosponsorUrl = url.replace("/text", "/cosponsors")
-        cosponsorContent = getDynamicUrlText(cosponsorUrl) if 'congress.gov' in cosponsorUrl else getStaticUrlText(cosponsorUrl)
 
         if content:
+            cosponsorUrl = url.replace("/text", "/cosponsors")
+            cosponsorContent = getDynamicUrlText(cosponsorUrl) if 'congress.gov' in cosponsorUrl else getStaticUrlText(cosponsorUrl)
+
             filename, headline, press_release = callApiWithText(
                 text=content,
                 cosponsorContent=cosponsorContent,
@@ -70,4 +71,11 @@ process of events:
 2) For senate: run % caffeinate -d python3 main.py s 
 
 Estimated Run Time: 30 seconds per url processed (only processed if it has text)
+"""
+
+"""
+TODO
+* bug where filename gives: $H billintros-None-s5 (for senate number 5) 
+* implement the kevin sql stuffs
+
 """

@@ -157,6 +157,7 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate):
         and introduction date.
 
         Strict Formatting Requirements:
+        - Always use **numerals** (e.g., "0", "1", "23", "101") to indicate the number of cosponsors — never write out the word form (e.g., "one", "twenty").
         - If there are **fewer than 101** cosponsors, list each one in this exact format:
         `[Rep. Last Name, First Name] [Party-State-District]...[Date Cosponsored]`
         - The `...` (three dots) must always separate the district information from the date.
