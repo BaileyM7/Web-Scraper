@@ -4,34 +4,49 @@ import re
 import csv
 
 def getDynamicUrlText(url):
-    """Extracts text from a dynamically loaded web page using Playwright and extracts the bill number."""
+    """Extracts the most recent bill number from a dynamically loaded web page using Playwright in stealth headless mode."""
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
-        context = browser.new_context()
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--disable-blink-features=AutomationControlled"]
+        )
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            viewport={"width": 1920, "height": 1080},
+            locale="en-US",
+            java_script_enabled=True
+        )
         page = context.new_page()
         try:
             page.goto(url, timeout=20000)
-            page.wait_for_load_state("networkidle", timeout=20000)
-            page.wait_for_timeout(5000)
+            try:
+                page.wait_for_selector("body", timeout=15000)
+            except:
+                print("Main selector did not load — returning -1")
+                return -1
+
+            # Simulate human interaction
             page.mouse.move(100, 100)
             page.mouse.wheel(0, 1000)
+            page.keyboard.press("ArrowDown")
             page.wait_for_timeout(3000)
 
+            # Parse page content
             text = BeautifulSoup(page.content(), 'html.parser').get_text()
 
             if "has not been received" in text:
                 return -1
-            
-            # Improved regex to handle normal and non-breaking spaces
+
+            # Use regex to find most recent bill number
             match = re.search(r'1\.\s*(S\.|H\.R\.)\s*(\d+)', text)
             if match:
-                bill_number = match.group(2)  # Extract the number part
+                bill_number = match.group(2)
                 print(f"Extracted Bill Number: {bill_number}")
                 return int(bill_number)
             else:
                 print("No bill number found.")
                 return -1
-            
+
         except Exception as e:
             print(f"Error fetching dynamic content: {e}")
             return -1
