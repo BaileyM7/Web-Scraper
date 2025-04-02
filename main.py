@@ -1,17 +1,20 @@
 import sys
 from url_processing import getUrls, getStaticUrlText, getDynamicUrlText, arr, invalidArr
 from openai_api import getKey, callApiWithText, OpenAI
-import csv
+from db_insert import insert_press_release
+from datetime import datetime
+import logging
 
-processedResults = []  # List to store results
+processedResults = []
 
-# Determine House or Senate from command-line arguments
+# Determine House or Senate
 if len(sys.argv) < 2 or sys.argv[1] not in ['h', 's']:
     print("Usage: python main.py h | s")
     sys.exit(1)
 
 is_senate = sys.argv[1] == 's'
 input_csv = "csv/senate.csv" if is_senate else "csv/house.csv"
+a_id = 40433 if is_senate else 40434
 
 def callUrlApi():
     """Processes URLs, extracts content, and generates headlines via OpenAI."""
@@ -20,6 +23,7 @@ def callUrlApi():
     for url in arr:
         if 'congress.gov' in url and not url.endswith('/text'):
             url += '/text'
+
         content = getDynamicUrlText(url) if 'congress.gov' in url else getStaticUrlText(url)
 
         if content:
@@ -33,35 +37,32 @@ def callUrlApi():
                 url=url,
                 is_senate=is_senate
             )
+
             if headline and press_release:
                 press_release += f"\n* * # * * \n\nPrimary source of information: {url}"
                 processedResults.append((url, filename, headline, press_release))
 
-def writeResultsToCsv():
-    """Writes processed results to a CSV file."""
-    with open('csv/output.csv', 'w', newline='', encoding='utf-8') as csvfile:
-        writer = csv.writer(csvfile, delimiter='|', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        writer.writerow(['URL', 'Filename', 'Headline', 'Story'])
-        for url, filename, headline, message in processedResults:
-            writer.writerow([url, filename, headline, message])
-
-def writeUnusedUrlsToCsv():
-    """Overwrites the same input CSV (house or senate) with the contents of invalidArr."""
+def writeInvalidUrls():
+    """Overwrites the same input CSV (house or senate) with the invalid URLs."""
+    import csv
     with open(input_csv, 'w', newline='', encoding='utf-8') as csvfile:
         writer = csv.writer(csvfile, delimiter='|', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         for url in invalidArr:
             writer.writerow([url])
 
 if __name__ == "__main__":
-    # Pass is_senate and input_csv to getUrls dynamically
     getUrls(input_csv)
 
     callUrlApi()
-    writeResultsToCsv()
 
-    # Print invalid links for debugging
-    print(invalidArr)
-    writeUnusedUrlsToCsv()
+    # Insert into database
+    today_str = datetime.today().strftime("%Y-%m-%d")
+    for url, filename, headline, message in processedResults:
+        insert_press_release(headline, today_str, message, a_id, filename)
+
+    # Print or log invalids
+    print("Invalid URLs:", invalidArr)
+    writeInvalidUrls()
 
 
 """
