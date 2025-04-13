@@ -71,6 +71,16 @@ process of events:
 2) For house: run %  caffeinate -d python3 main.py h 
 2) For senate: run % caffeinate -d python3 main.py s 
 
+
+Run this to check db
+
+SELECT filename, a_id, headline, body_txt
+FROM tns.press_release
+ORDER BY create_date DESC
+LIMIT 5;
+
+
+
 Estimated Run Time: 30 seconds per url processed (only processed if it has text)
 """
 
