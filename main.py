@@ -66,7 +66,7 @@ if __name__ == "__main__":
     # Insert into database
     today_str = datetime.today().strftime("%Y-%m-%d")
     for url, filename, headline, message in processedResults:
-        insert_press_release(headline, today_str, message, a_id, filename)
+        insert_press_release(headline, today_str, message, a_id, filename, url)
 
     # Print or log invalids
     print("Invalid URLs:", invalidArr)
