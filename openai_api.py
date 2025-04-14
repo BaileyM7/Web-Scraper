@@ -33,12 +33,21 @@ def get_date_from_text(text):
         return f"{yyyy[-2:]}{mm}{dd}"
     return None
 
+def get_date_from_cosponsor_summary(text):
+    match = re.search(r'introduced on (\d{2})/(\d{2})/(\d{4})', text)
+    if match:
+        mm, dd, yyyy = match.groups()
+        return f"{yyyy[-2:]}{mm}{dd}"
+    return None
+
 def callApiWithText(text, cosponsorContent, client, url, is_senate):
     """
     Processes extracted text through OpenAI's API to generate headlines 
     and press releases, building either House or Senate style prompts and filenames.
     """
     today = datetime.today()
+
+    text = re.sub(r'https://www\.congress\.gov[^\s]*', '', text)
 
     # Decide how to handle month abbreviations (<=5 letters => spelled out, else abbreviate)
     month = today.strftime('%B') 
@@ -51,6 +60,12 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate):
     today_date = f"{formatted_month} {today.strftime(day_format)}"
     file_date = get_date_from_text(text)
 
+
+
+    # if file_date:
+    #     filename = f"$H billintros-{file_date}-s{bill_number}" if is_senate \
+    #         else f"$H billintroh-{file_date}-hr{bill_number}"
+    
     # Extract final path component for the bill number
     # For a House link like: https://www.congress.gov/bill/119th-congress/house-bill/128/text
     # the second to last piece is "128"
@@ -189,6 +204,13 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate):
         )
         cosponsor_summary = re.sub(r'\s+', ' ', cosponsor_response.choices[0].message.content).strip("'")
 
+        if not file_date:
+            file_date = get_date_from_cosponsor_summary(cosponsor_summary)
+        if is_senate:
+            filename = f"$H billintros-{file_date}-s{bill_number}"
+        else:
+            filename = f"$H billintroh-{file_date}-hr{bill_number}"
+            
         # Append cosponsor summary to the press release
         press_release += f"\n{cosponsor_summary}\n"
 

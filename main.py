@@ -6,6 +6,7 @@ from datetime import datetime
 import logging
 
 processedResults = []
+seen = set()  # Track canonical URLs already handled
 
 # Determine House or Senate
 if len(sys.argv) < 2 or sys.argv[1] not in ['h', 's']:
@@ -16,11 +17,19 @@ is_senate = sys.argv[1] == 's'
 input_csv = "csv/senate.csv" if is_senate else "csv/house.csv"
 a_id = 40433 if is_senate else 40434
 
+def normalize_url(url):
+    return url.strip().rstrip('/').replace("/cosponsors", "").replace("/text", "")
+
 def callUrlApi():
     """Processes URLs, extracts content, and generates headlines via OpenAI."""
     client = OpenAI(api_key=getKey())
 
     for url in arr:
+        canonical_url = normalize_url(url)
+        if canonical_url in seen:
+            continue
+        seen.add(canonical_url)
+
         if 'congress.gov' in url and not url.endswith('/text'):
             url += '/text'
 
@@ -52,7 +61,6 @@ def writeInvalidUrls():
 
 if __name__ == "__main__":
     getUrls(input_csv)
-
     callUrlApi()
 
     # Insert into database
@@ -86,7 +94,12 @@ Estimated Run Time: 30 seconds per url processed (only processed if it has text)
 
 """
 TODO
-* bug where filename gives: $H billintros-None-s5 (for senate number 5) 
-* implement the kevin sql stuffs
+* Bug where filename gives: $H billintos-None-s5 (For senate number 5)
+* implement the stuff Kevin sent
+* Make a system to deal with weird numbering of beginning of year bills for house and senate
+* BUG: sometimes my code is preprending: https://www.congress.gov/bill/119th-congress/senate-bill/748/text, when it should only be at the end of the body text!
+* Fix the bug in which code is allowing for duplicated runs of certain urls, 
+    * This could be taking place at various steps of the process ( when adding urls to css or when processing them)
+
 
 """

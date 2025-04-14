@@ -4,25 +4,33 @@ import pdfplumber
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
-arr = []      # Holds raw URLs
+arr = []      # Holds normalized URLs to process
 pdfs = []     # Holds PDFs only
 invalidArr = []
 
 def add_invalid_url(url):
-    # Cleans and adds a unique invalid URL to invalidArr.
-    cleaned_url = url.replace("/text", "").replace("/cosponsors", "")
+    cleaned_url = url.strip().rstrip('/').replace("/cosponsors", "").replace("/text", "")
     if cleaned_url not in invalidArr:
         invalidArr.append(cleaned_url)
 
 def getUrls(input_csv):
-    """Loads URLs from the specified CSV file and sets flags accordingly."""
+    """Loads URLs from the specified CSV file, normalizes and deduplicates them."""
     global arr, pdfs, invalidArr
+    seen = set()
 
     try:
         with open(input_csv, 'r', encoding='utf-8') as urls:
             reader = csv.reader(urls)
             for row in reader:
-                url = row[0].strip()
+                url = row[0].strip().rstrip('/')
+                if 'congress.gov' in url and not url.endswith('/text'):
+                    url += '/text'
+
+                canonical = url.replace('/cosponsors', '').replace('/text', '')
+                if canonical in seen:
+                    continue
+                seen.add(canonical)
+
                 if 'pdf' in url.lower():
                     pdfs.append(url)
                 else:
@@ -53,7 +61,7 @@ def getStaticUrlText(url):
     except requests.exceptions.RequestException as e:
         print(f"Error fetching URL content: {e}")
         return None
-    
+
 def getDynamicUrlText(url):
     """Extracts text from a dynamically loaded web page using Playwright (stealth headless mode)."""
     with sync_playwright() as p:
