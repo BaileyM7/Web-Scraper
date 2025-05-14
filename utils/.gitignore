@@ -5,3 +5,6 @@ chromedriver-win64
 scrape_prototype
 __pycache__/openai_api.cpython-312.pyc
 __pycache__/url_processing.cpython-312.pyc
+scrape_prototype
+.vscode
+tester

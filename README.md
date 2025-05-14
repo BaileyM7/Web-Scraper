@@ -1,131 +1,122 @@
-# Web-Scraper
+# Bill Processing System
 
-This project is a robust web scraping and summarization pipeline tailored for legislative content. It can process static and dynamic webpages, as well as PDF documents, and outputs concise summaries—such as headlines and press releases—especially for bills hosted on Congress.gov. Summarized data is automatically inserted into a MySQL database.
+A system for automatically fetching, processing, and generating press releases from legislative bills from congress.gov and related sources.
 
----
+## Overview
 
-## 📌 Features
+This system automatically:
+1. Scrapes bill text from congressional websites
+2. Processes the content using AI to generate press releases
+3. Stores results in a database
+4. Sends summary emails on completion
 
-### 🔍 Scraping Capabilities
-- **Static Webpages**: Fetched with `requests` and parsed using `BeautifulSoup`.
-- **Dynamic Webpages**: Rendered and extracted using `playwright` for JavaScript-heavy pages.
-- **PDF Documents**: Handled using `pdfplumber` for direct text extraction.
+## Dependencies
 
-### 🤖 AI-Powered Summarization
-- Uses OpenAI's GPT API to generate:
-  - News-style **headlines**
-  - Detailed **press releases**
-  - Cosponsor summaries with structured formatting
+### Python Libraries
+- `sys` - Standard library for system-specific parameters and functions
+- `getopt` - Standard library for command line option parsing
+- `csv` - Standard library for CSV file operations
+- `logging` - Standard library for logging functionality
+- `time` - Standard library for time-related functions
+- `datetime` - Standard library for date and time manipulation
 
-### 🧠 Legislative Awareness
-- **Congress Bill Status Check**: For each bill URL, the scraper determines if the bill text has been published.
-  - If yes → Summarizes content and inserts into the database.
-  - If no → Adds to an invalid URLs CSV file for later review.
+### Custom Modules
+- `url_processing` - Contains functions for URL handling and content extraction
+- `openai_api` - OpenAI integration for text processing
+- `db_insert` - Database connection and operations
+- `scripts.populateCsv` - CSV population utilities
+- `email_utils` - Email sending functionality
 
----
+### External Services
+- OpenAI API - Used for text processing and generating press releases
+- Database server - For storing processed content
 
-## 🛠 Installation
+## Installation
 
-```bash
-pip install -r requirements.txt
-playwright install
+1. Clone this repository
+2. Install the required Python packages
+3. Set up your database configuration (see Configuration section)
+4. Ensure you have an OpenAI API key properly configured
+
+## Configuration
+
+Before running the script, make sure you have:
+
+1. A database set up and properly configured for connection
+2. OpenAI API key accessible to the system
+3. The `sources.dmp.sql` file in the root directory
+4. CSV files in the `csv/` directory:
+   - `senate.csv`
+   - `house.csv`
+
+## Usage
+
+Run the script with the following command line options:
+
+```
+python process_bills.py [OPTIONS]
 ```
 
-### `requirements.txt` should include:
+### Options:
+- `-P` - Populate CSV files first before processing
+- `-s` - Process Senate bills
+- `-h` - Process House bills
+- `-i [a_id]` - Specify the author ID for the database
 
+### Examples:
+
+Process Senate bills:
 ```
-openai
-pdfplumber
-requests
-beautifulsoup4
-playwright
-PyYAML
-mysql-connector-python
+python process_bills.py -s -i 56
 ```
 
----
+Process House bills:
+```
+python process_bills.py -h -i 57
+```
 
-## 🚀 Usage
+Populate CSV first:
+```
+python process_bills.py -P 
+```
 
-1. **Prepare Your Input**  
-   Populate `csv/house.csv` or `csv/senate.csv` with target URLs.
+## Main Features
 
-2. **Run the Scraper**  
-   ```bash
-   python main.py h     # For House URLs
-   python main.py s     # For Senate URLs
-   ```
+### URL Processing
+- Extracts URLs from CSV files
+- Handles both static and dynamic content loading
+- Special handling for congress.gov URLs
 
-3. **Results**  
-   - Valid data will be inserted into the `tns.press_release` table.
-   - Invalid or pending URLs will be saved back into the same input CSV.
+### AI Content Generation
+- Uses OpenAI API to process legislative text
+- Generates press releases based on bill content
+- Adds source attribution to generated content
 
----
+### Database Operations
+- Checks for duplicate entries
+- Inserts new stories with proper metadata
+- Loads SQL dumps for source information
 
-## 🧬 How It Works
+### Logging and Reporting
+- Comprehensive logging system
+- Generates summary reports
+- Sends email notifications with operation results
 
-### 🔧 Code Breakdown
+## Output
 
-- `main.py`: Entry point that loads URLs, processes them, calls the OpenAI API, and saves output to the database.
-- `url_processing.py`: Fetches text from URLs depending on type (static, dynamic, or PDF).
-- `openai_api.py`: 
-  - Builds prompts
-  - Calls GPT API to summarize bills
-  - Generates structured cosponsor summaries
-- `db_insert.py`: Inserts headlines and press releases into the MySQL database (with source URL and timestamps).
-- `configs/db_config.yml`: Contains DB connection credentials.
+The script produces:
+1. Log files with detailed execution information
+2. Database entries for each processed bill
+3. Email summaries of the processing run
 
----
+## Troubleshooting
 
-## 🗃️ Database Output
+If you encounter issues:
+1. Check the log file in the root directory
+2. Verify your database connection settings
+3. Ensure your OpenAI API key is valid
+4. Confirm the CSV files are properly formatted
 
-### Table: `tns.press_release`
+## Version
 
-Each entry includes:
-- `headline`
-- `content_date`
-- `body_txt` (press release)
-- `a_id` (House or Senate)
-- `filename` (e.g., `$H billintroh-250314-hr101`)
-- `source_url` (directly from the input)
-- `status`, `create_date`, `last_action`, `uname`
-
----
-
-## 🧪 Example
-
-### Input:
-`https://www.congress.gov/bill/119th-congress/house-bill/2906`
-
-### Output in Database:
-- **Headline**: "Rep. Johnson Introduces Rural Development Initiative Act"
-- **Filename**: `$H billintroh-250314-hr2906`
-- **Press Release**: Multi-paragraph summary with cosponsor list
-- **Source URL**: Stored as a standalone column
-
-If the bill text isn’t published yet, the URL will be logged in the original CSV file.
-
----
-
-## 🧼 Cleanup & Logging
-
-- URLs with missing content or parsing failures are deduplicated and logged.
-- Script automatically avoids duplicate scraping and database insertions.
-- CSV file of invalid links is overwritten each run.
-
----
-
-## 📝 Known Issues / TODO
-
-- [ ] Fix filename formatting bug when bill number or date is missing
-- [ ] Handle odd formatting at the start of the year
-- [ ] Prevent duplicate URL handling more aggressively
-- [ ] Ensure OpenAI errors are fully logged and retry logic is considered
-
----
-
-## 🙏 Acknowledgments
-
-- [OpenAI](https://openai.com) — GPT API for language understanding
-- [Playwright](https://playwright.dev) — Dynamic webpage automation
-- [Congress.gov](https://www.congress.gov) — Public legislative data
+Current Version: 2.2.1 (04/07/2025)

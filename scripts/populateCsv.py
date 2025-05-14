@@ -78,14 +78,16 @@ def updateLastFoundAndAppendToCSV(file_path, house_number, senate_number):
             for num in range(last_senate + 1, senate_number + 1):
                 csv_writer.writerow([f'https://www.congress.gov/bill/119th-congress/senate-bill/{num}'])
     
-    with open(file_path, 'w') as file:
+    with open(file_path, 'w', newline='') as file:
         file.write(f"{house_number}\n{senate_number}\n")
 
-house_url = "https://www.congress.gov/search?q=%7B%22source%22%3A%22legislation%22%2C%22congress%22%3A119%2C%22chamber%22%3A%22House%22%7D"
-senate_url = "https://www.congress.gov/search?q=%7B%22source%22%3A%22legislation%22%2C%22congress%22%3A119%2C%22chamber%22%3A%22Senate%22%7D"
+def populateCsv():
+    """Calls the scraper and updates the CSV files."""
+    house_url = "https://www.congress.gov/search?q=%7B%22source%22%3A%22legislation%22%2C%22congress%22%3A119%2C%22chamber%22%3A%22House%22%7D"
+    senate_url = "https://www.congress.gov/search?q=%7B%22source%22%3A%22legislation%22%2C%22congress%22%3A119%2C%22chamber%22%3A%22Senate%22%7D"
 
-house_number = getDynamicUrlText(house_url)
-senate_number = getDynamicUrlText(senate_url)
+    house_number = getDynamicUrlText(house_url)
+    senate_number = getDynamicUrlText(senate_url)
 
-if house_number != -1 and senate_number != -1:
-    updateLastFoundAndAppendToCSV("lastFound.txt", house_number, senate_number)
+    if house_number != -1 and senate_number != -1:
+        updateLastFoundAndAppendToCSV("lastFound.txt", house_number, senate_number)

@@ -14,7 +14,7 @@ def get_db_connection(yml_path="configs/db_config.yml"):
         password=config["password"],
         database=config["database"]
     )
-
+'''
 def insert_press_release(headline, date_str, body, a_id, filename, url, uname="openai"):
     """
     Insert a new press release entry with the URL as a standalone element (source_url).
@@ -54,3 +54,5 @@ def insert_press_release(headline, date_str, body, a_id, filename, url, uname="o
     finally:
         if conn:
             conn.close()
+
+'''
