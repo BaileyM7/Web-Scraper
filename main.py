@@ -83,34 +83,35 @@ def load_sources_sql(filepath="sources.dmp.sql"):
 def main(argv):
     start_time = datetime.now()
     processed, skipped, total_urls = 0, 0, 0
-    a_id = 0
-    is_senate = None
     populate_first = False
+    is_senate = None
+    a_id = 0
 
     try:
-        opts, args = getopt.getopt(argv, "Pshi:")
+        opts, args = getopt.getopt(argv, "Psh")
     except getopt.GetoptError:
-        print("Usage: -P -s/-h -i [a_id]")
+        print("Usage: -P -s/-h")
         sys.exit(1)
 
-    for opt, arg in opts:
+    for opt, _ in opts:
         if opt == "-P":
             populate_first = True
         elif opt == "-s":
             is_senate = True
+            a_id = 56
         elif opt == "-h":
             is_senate = False
-        elif opt == "-i":
-            a_id = int(arg)
+            a_id = 57
 
-    if is_senate is None or a_id == 0:
-        print("Must specify -s or -h and provide -i [a_id]")
+    if is_senate is None:
+        print("Must specify -s or -h")
         sys.exit(1)
 
     if populate_first:
         populateCsv()
 
-    load_sources_sql()
+    # commented out based on assumption table is already made
+    # load_sources_sql()
 
     input_csv = "csv/senate.csv" if is_senate else "csv/house.csv"
     getUrls(input_csv)
@@ -152,7 +153,7 @@ def main(argv):
     end_time = datetime.now()
     elapsed = str(end_time - start_time).split('.')[0]
     summary = f"""
-Load Version 1.0.0 05/14/2025
+Load Version 1.0.1 05/17/2025
 Docs Loaded: {processed}
 URLS processed: {total_urls}
 DUPS skipped: {skipped}

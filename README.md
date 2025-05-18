@@ -1,4 +1,4 @@
-# Bill Processing System
+# Bill Processing System 1.01
 
 A system for automatically fetching, processing, and generating press releases from legislative bills from congress.gov and related sources.
 
@@ -61,23 +61,22 @@ python process_bills.py [OPTIONS]
 - `-P` - Populate CSV files first before processing
 - `-s` - Process Senate bills
 - `-h` - Process House bills
-- `-i [a_id]` - Specify the author ID for the database
 
 ### Examples:
 
 Process Senate bills:
 ```
-python process_bills.py -s -i 56
+python process_bills.py -s
 ```
 
 Process House bills:
 ```
-python process_bills.py -h -i 57
+python process_bills.py -h
 ```
 
-Populate CSV first:
+Populate CSV first, then proces senate bills:
 ```
-python process_bills.py -P 
+python process_bills.py -P -s
 ```
 
 ## Main Features
