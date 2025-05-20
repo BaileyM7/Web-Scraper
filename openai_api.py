@@ -3,6 +3,7 @@ from datetime import datetime
 from openai import OpenAI
 from urllib.parse import urlparse
 import platform
+from cleanup_text import cleanup_text
 
 def getKey():
     """Retrieves the OpenAI API key from a file."""
@@ -17,7 +18,8 @@ def getKey():
         print(f"An I/O error occurred: {e}")
 
 def clean_text(text):
-    """Cleans text for readability."""
+    """Cleans text for readability and ASCII compliance."""
+    text = cleanup_text(text)  # Replace non-ASCII chars
     text = re.sub(r'\*\*', '', text)  
     text = re.sub(r'""', '"', text)
     text = re.sub(r'###', '', text)
@@ -154,7 +156,7 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate):
         # Attempt to split the result so that the first line is the headline
         # and everything else is the press release
         headline, press_release = result.split('\n', 1)
-        headline = clean_text(headline)
+        headline = clean_text(headline).strip()
         press_release = clean_text(press_release)
         press_release = f"\nWASHINGTON, {today_date} -- {press_release}\n"
 

@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import sys
 import getopt
 import csv
@@ -39,10 +40,21 @@ def insert_story(filename, headline, body, a_id):
 
         insert_sql = """
         INSERT INTO story
-        (filename, uname, source, by_line, headline, story_txt, editor, invoice_tag, date_sent, sent_to, wire_to, nexis_sent, factiva_sent)
-        VALUES (%s, %s, %s, '', %s, %s, '', '', NOW(), '', '', NULL, NULL)
+        (filename, uname, source, by_line, headline, story_txt, editor, invoice_tag,
+         date_sent, sent_to, wire_to, nexis_sent, factiva_sent,
+         status, content_date)
+        VALUES (%s, %s, %s, '', %s, %s, '', '', NOW(), '', '', NULL, NULL, %s, %s)
         """
-        cursor.execute(insert_sql, (filename, "openai", a_id, headline, body))
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        cursor.execute(insert_sql, (
+            filename,
+            "M-Biz",                 # uname
+            "Bailey Malota",         # source
+            headline,
+            body,
+            'D',                     # status
+            today_str                # content_date
+        ))
         conn.commit()
         logging.info(f"Inserted story: {filename}")
         return True
@@ -153,7 +165,7 @@ def main(argv):
     end_time = datetime.now()
     elapsed = str(end_time - start_time).split('.')[0]
     summary = f"""
-Load Version 1.0.1 05/17/2025
+Load Version 1.0.2 05/20/2025
 Docs Loaded: {processed}
 URLS processed: {total_urls}
 DUPS skipped: {skipped}

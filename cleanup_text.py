@@ -2,85 +2,261 @@ import re
 import logging
 from datetime import datetime
 
-def cleanup_text(text, write=False):
-    # Define byte-replacement mappings
+def cleanup_text(text: str, write: bool = False) -> str:
+    """
+    Cleans up text by replacing problematic multi-byte sequences with ASCII-safe equivalents.
+    Logs any remaining bad characters.
+    """
     replacements = {
-        b"\xce\xbc": "u",  # μ
+        b"\xce\xbc": "u",
         b"\xc2\x9d": "",
-        b"\xc2\xa0": " ",  # non-breaking space
-        b"\xc2\xa1": "i",  # ¡
-        b"\xc2\xa2": "cents",  # ¢
-        b"\xc2\xa3": "pound sterling",  # £
-        b"\xc2\xa4": "#",  # ¤
-        b"\xc2\xa5": "Yen",  # ¥
-        b"\xc2\xa7": "Sec.",  # §
-        b"\xc2\xa8": "~",  # ¨
-        b"\xc2\xa9": " Copyright (c) ",  # ©
-        b"\xc2\xaa": "(a)",  # ª
-        b"\xc2\xab": "<<",  # «
-        b"\xc2\xac": " ",  # ¬
-        b"\xc2\xad": "",  # soft hyphen
-        b"\xc2\xae": "(R)",  # ®
+        b"\xc2\xa0": " ",
+        b"\xc2\xa1": "i",
+        b"\xc2\xa2": "cents",
+        b"\xc2\xa3": "pound sterling",
+        b"\xc2\xa4": "#",
+        b"\xc2\xa5": "Yen",
+        b"\xc2\xa7": "Sec.",
+        b"\xc2\xa8": "~",
+        b"\xc2\xa9": " Copyright (c) ",
+        b"\xc2\xaa": "(a)",
+        b"\xc2\xab": "<<",
+        b"\xc2\xac": " ",
+        b"\xc2\xad": "",
+        b"\xc2\xae": "(R)",
         b"\xc2\xaf": "",
-        b"\xc2\xb0": " degrees",  # °
-        b"\xc2\xb1": "+-",  # ±
-        b"\xc2\xb2": "(2)",  # ²
-        b"\xc2\xb3": "(3)",  # ³
-        b"\xc2\xb4": "'",  # ´
-        b"\xc2\xb5": "u",  # µ
-        b"\xc2\xb6": "\n",  # ¶
-        b"\xc2\xb7": ".",  # ·
-        b"\xc2\xb9": "(1)",  # ¹
-        b"\xc2\xba": "-",  # º
-        b"\xc2\xbb": '"',  # »
+        b"\xc2\xb0": " ",
+        b"\xc2\xb1": "+-",
+        b"\xc2\xb2": "(2)",
+        b"\xc2\xb3": "(3)",
+        b"\xc2\xb4": "'",
+        b"\xc2\xb5": "u",
+        b"\xc2\xb6": "P",
+        b"\xc2\xb7": ".",
+        b"\xc2\xb8": ",",
+        b"\xc2\xb9": "(1)",
+        b"\xc2\xba": "(o)",
+        b"\xc2\xbb": "<<",
         b"\xc2\xbc": "1/4",
         b"\xc2\xbd": "1/2",
         b"\xc2\xbe": "3/4",
-        b"\xc2\xbf": "",  # ¿
-        b"\xca\xbb": "",  # ʻ from Hawaiʻi
-        b"\xe2\x80\x82": "",
-        b"\xe2\x80\x8a": " ",
-        b"\xe2\x80\x93": "-",  # –
-        b"\xe2\x80\x94": "--",  # —
-        b"\xe2\x80\x98": "'",  # ‘
-        b"\xe2\x80\x99": "'",  # ’
-        b"\xe2\x80\x9c": '"',  # “
-        b"\xe2\x80\x9d": '"',  # ”
-        b"\xe2\x80\xa6": "...",  # …
-        b"\xe2\x80\xa2": "-",  # •
-        b"\xe2\x82\xac": "Euros",  # €
-        b"\xe2\x84\xa2": "(TM)",  # ™
-        b"\xe2\x86\x90": "<-",  # ←
-        b"\xe2\x86\x92": "->",  # →
-        b"\xe2\x87\x90": "<->",  # ⇐
-        b"\xe2\x88\x92": "-",  # −
-        b"\xe2\x81\x84": "/",  # ⁄
-        b"\xe2\x9c\x93": "check",  # ✓
+        b"\xc2\xbf": "",
+        b"\xc2\xb0": " degrees",
+        b"\xca\xbb": "",
+        b"\xc3\x80": "A",
+        b"\xc3\x81": "A",
+        b"\xc3\x82": "A",
+        b"\xc3\x83": "A",
+        b"\xc3\x84": "A",
+        b"\xc3\x85": "A",
+        b"\xc3\x86": "AE",
+        b"\xc3\x87": "C",
+        b"\xc3\x88": "E",
+        b"\xc3\x89": "E",
+        b"\xc3\x8a": "E",
+        b"\xc3\x8b": "E",
+        b"\xc3\x8c": "I",
+        b"\xc3\x8d": "I",
+        b"\xc3\x8e": "I",
+        b"\xc3\x8f": "I",
+        b"\xc3\x90": "D",
+        b"\xc3\x91": "N",
+        b"\xc3\x92": "O",
+        b"\xc3\x93": "O",
+        b"\xc3\x94": "O",
+        b"\xc3\x95": "O",
+        b"\xc3\x96": "O",
+        b"\xc3\x97": "x",
+        b"\xc3\x98": "O",
+        b"\xc3\x99": "U",
+        b"\xc3\x9a": "U",
+        b"\xc3\x9b": "U",
+        b"\xc3\x9c": "U",
+        b"\xc3\x9d": "Y",
+        b"\xc3\x9e": "Th",
+        b"\xc3\x9f": "ss",
+        b"\xc3\xa0": "a",
+        b"\xc3\xa1": "a",
+        b"\xc3\xa2": "a",
+        b"\xc3\xa3": "a",
+        b"\xc3\xa4": "a",
+        b"\xc3\xa5": "a",
+        b"\xc3\xa6": "ae",
+        b"\xc3\xa7": "c",
+        b"\xc3\xa8": "e",
+        b"\xc3\xa9": "e",
+        b"\xc3\xaa": "e",
+        b"\xc3\xab": "e",
+        b"\xc3\xac": "i",
+        b"\xc3\xad": "i",
+        b"\xc3\xae": "i",
+        b"\xc3\xaf": "i",
+        b"\xc3\xb0": "d",
+        b"\xc3\xb1": "n",
+        b"\xc3\xb2": "o",
+        b"\xc3\xb3": "o",
+        b"\xc3\xb4": "o",
+        b"\xc3\xb5": "o",
+        b"\xc3\xb6": "o",
+        b"\xc3\xb7": "/",
+        b"\xc3\xb8": "o",
+        b"\xc3\xb9": "u",
+        b"\xc3\xba": "u",
+        b"\xc3\xbb": "u",
+        b"\xc3\xbc": "u",
+        b"\xc3\xbd": "y",
+        b"\xc3\xbe": "p",
+        b"\xc3\xbf": "y",
+        b"\xc4\x80": "A",
+        b"\xc4\x81": "a",
+        b"\xc4\x82": "A",
+        b"\xc4\x83": "a",
+        b"\xc4\x84": "A",
+        b"\xc4\x85": "a",
+        b"\xc4\x86": "C",
+        b"\xc4\x87": "c",
+        b"\xc4\x88": "C",
+        b"\xc4\x89": "c",
+        b"\xc4\x8a": "C",
+        b"\xc4\x8b": "c",
+        b"\xc4\x8c": "C",
+        b"\xc4\x8d": "c",
+        b"\xc4\x8e": "D",
+        b"\xc4\x8f": "d",
+        b"\xc4\x90": "D",
+        b"\xc4\x91": "d",
+        b"\xc4\x92": "E",
+        b"\xc4\x93": "e",
+        b"\xc4\x94": "E",
+        b"\xc4\x95": "e",
+        b"\xc4\x96": "E",
+        b"\xc4\x97": "e",
+        b"\xc4\x98": "E",
+        b"\xc4\x99": "e",
+        b"\xc4\x9a": "G",
+        b"\xc4\x9b": "g",
+        b"\xc4\x9c": "G",
+        b"\xc4\x9d": "g",
+        b"\xc4\x9e": "G",
+        b"\xc4\x9f": "g",
+        b"\xc4\xa0": "G",
+        b"\xc4\xa1": "g",
+        b"\xc4\xa2": "H",
+        b"\xc4\xa3": "h",
+        b"\xc4\xa4": "H",
+        b"\xc4\xa5": "h",
+        b"\xc4\xa6": "H",
+        b"\xc4\xa7": "h",
+        b"\xc4\xa8": "I",
+        b"\xc4\xa9": "i",
+        b"\xc4\xaa": "I",
+        b"\xc4\xab": "i",
+        b"\xc4\xac": "I",
+        b"\xc4\xad": "i",
+        b"\xc4\xae": "J",
+        b"\xc4\xaf": "j",
+        b"\xc4\xb0": "J",
+        b"\xc4\xb1": "j",
+        b"\xc4\xb2": "K",
+        b"\xc4\xb3": "k",
+        b"\xc4\xb4": "k",
+        b"\xc4\xb5": "L",
+        b"\xc4\xb6": "l",
+        b"\xc4\xb7": "L",
+        b"\xc4\xb8": "l",
+        b"\xc4\xb9": "L",
+        b"\xc4\xba": "l",
+        b"\xc4\xbb": "L",
+        b"\xc4\xbc": "l",
+        b"\xc4\xbd": "l",
+        b"\xc4\xbe": "L",
+        b"\xc4\xbf": "l",
+        b"\xc5\x80": "N",
+        b"\xc5\x81": "n",
+        b"\xc5\x82": "N",
+        b"\xc5\x83": "n",
+        b"\xc5\x84": "O",
+        b"\xc5\x85": "o",
+        b"\xc5\x86": "O",
+        b"\xc5\x87": "o",
+        b"\xc5\x88": "O",
+        b"\xc5\x89": "o",
+        b"\xc5\x8a": "R",
+        b"\xc5\x8b": "r",
+        b"\xc5\x8c": "R",
+        b"\xc5\x8d": "r",
+        b"\xc5\x8e": "R",
+        b"\xc5\x8f": "r",
+        b"\xc5\x90": "S",
+        b"\xc5\x91": "s",
+        b"\xc5\x92": "S",
+        b"\xc5\x93": "s",
+        b"\xc5\x94": "S",
+        b"\xc5\x95": "s",
+        b"\xc5\x96": "T",
+        b"\xc5\x97": "t",
+        b"\xc5\x98": "T",
+        b"\xc5\x99": "t",
+        b"\xc5\x9a": "Z",
+        b"\xc5\x9b": "z",
+        b"\xc5\x9c": "Z",
+        b"\xc5\x9d": "z",
+        b"\xc5\x9e": "Z",
+        b"\xc5\x9f": "z",
+        b"\xc5\xa0": "S",
+        b"\xc5\xa1": "s",
+        b"\xc5\xa2": "T",
+        b"\xc5\xa3": "t",
+        b"\xc5\xa4": "T",
+        b"\xc5\xa5": "t",
+        b"\xc5\xa6": "T",
+        b"\xc5\xa7": "t",
+        b"\xc5\xa8": "U",
+        b"\xc5\xa9": "u",
+        b"\xc5\xaa": "U",
+        b"\xc5\xab": "u",
+        b"\xc5\xac": "U",
+        b"\xc5\xad": "u",
+        b"\xc5\xae": "U",
+        b"\xc5\xaf": "u",
+        b"\xc5\xb0": "u",
+        b"\xc5\xb1": "u",
+        b"\xc5\xb2": "Z",
+        b"\xc5\xb3": "z",
+        b"\xc5\xb4": "z",
+        b"\xc5\xb5": "Y",
+        b"\xc5\xb6": "Z",
+        b"\xc5\xb7": "y",
+        b"\xc5\xb8": "Y",
+        b"\xc5\xb9": "Z",
+        b"\xc5\xba": "z",
+        b"\xc5\xbb": "Z",
+        b"\xc5\xbc": "z",
+        b"\xc5\xbd": "Z",
+        b"\xc5\xbe": "z",
         b"\xa7\xa7\xa7\xa7": "sections ",
         b"\xa7\xa7": "section ",
+        b"\xe2\x80\x9c": '"',  # left double quote
+        b"\xe2\x80\x9d": '"',  # right double quote
+        b"\xe2\x80\x98": "'",  # left single quote
+        b"\xe2\x80\x99": "'",  # right single quote
+        b"\xe2\x80\xb9": "<",  # single left-pointing angle quote
+        b"\xe2\x80\xba": ">",  # single right-pointing angle quote
     }
 
-    # Add all your other replacements here following the same format...
-    # This would typically be built dynamically from a large PHP array if needed
+    # Convert text to bytes and apply replacements
+    raw_bytes = text.encode('utf-8', 'ignore')
+    for bad_bytes, replacement in replacements.items():
+        raw_bytes = raw_bytes.replace(bad_bytes, replacement.encode('ascii', 'ignore'))
 
-    # Convert text to bytes
-    raw_bytes = text.encode('utf-8')
-
-    # Apply all replacements
-    for bad, good in replacements.items():
-        raw_bytes = raw_bytes.replace(bad, good.encode('ascii', 'ignore'))
-
-    # Convert back to string
+    # Decode back to ASCII, ignoring any bytes that still remain problematic
     text = raw_bytes.decode('ascii', 'ignore')
 
-    # Optional: log bad characters
-    normal_characters = re.compile(r"[a-zA-Z0-9\s`~!@#$%^&*()_+\-={}|:;<>?,./\"'\\\[\]]")
-    bad_chars = ''.join([char for char in text if not normal_characters.match(char)])
-    
+    # Log any characters that are outside the normal ASCII range
+    normal_characters = re.compile(r"[a-zA-Z0-9\s`~!@#$%^&*()_+\-={}|:;<>?,./\\\"'\\\\\[\\\]]")
+    bad_chars = "".join([char for char in text if not normal_characters.match(char)])
     if bad_chars:
         bad_time = datetime.now().strftime("%Y-%m-%d %H:%M")
         logging.basicConfig(filename="/tnsdata/logs/badchars1", level=logging.ERROR, format="%(message)s")
         logging.error(f"\n{bad_time} - [{bad_chars}]")
-
     return text
-
