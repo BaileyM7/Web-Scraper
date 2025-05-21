@@ -43,13 +43,14 @@ def insert_story(filename, headline, body, a_id):
         (filename, uname, source, by_line, headline, story_txt, editor, invoice_tag,
          date_sent, sent_to, wire_to, nexis_sent, factiva_sent,
          status, content_date)
-        VALUES (%s, %s, %s, '', %s, %s, '', '', NOW(), '', '', NULL, NULL, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, '', '', NOW(), '', '', NULL, NULL, %s, %s)
         """
         today_str = datetime.now().strftime('%Y-%m-%d')
         cursor.execute(insert_sql, (
             filename,
             "M-Biz",                 # uname
-            "Bailey Malota",         # source
+            a_id,         # source
+            "Bailey Malota",
             headline,
             body,
             'D',                     # status
@@ -122,9 +123,6 @@ def main(argv):
     if populate_first:
         populateCsv()
 
-    # commented out based on assumption table is already made
-    # load_sources_sql()
-
     input_csv = "csv/senate.csv" if is_senate else "csv/house.csv"
     getUrls(input_csv)
 
@@ -146,12 +144,41 @@ def main(argv):
             continue
 
         cosponsorContent = getDynamicUrlText(url.replace("/text", "/cosponsors"))
+
+        # get filename only to check for duplicates
+        filename_preview, _, _ = callApiWithText(
+            text=content,
+            cosponsorContent=cosponsorContent,
+            client=client,
+            url=url,
+            is_senate=is_senate,
+            filename_only=True  
+        )
+
+        if not filename_preview:
+            logging.warning(f"Filename preview failed for {url}")
+            skipped += 1
+            continue
+
+        # check DB before calling GPT fully
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM story WHERE filename = %s", (filename_preview,))
+        if cursor.fetchone()[0] > 0:
+            logging.info(f"Skipping duplicate before GPT call: {filename_preview}")
+            skipped += 1
+            conn.close()
+            continue
+        conn.close()
+
+        # make full GPT call
         filename, headline, press_release = callApiWithText(
             text=content,
             cosponsorContent=cosponsorContent,
             client=client,
             url=url,
-            is_senate=is_senate
+            is_senate=is_senate, 
+            filename_only=False
         )
 
         if filename and headline and press_release:
@@ -165,7 +192,7 @@ def main(argv):
     end_time = datetime.now()
     elapsed = str(end_time - start_time).split('.')[0]
     summary = f"""
-Load Version 1.0.2 05/20/2025
+Load Version 1.0.3 05/21/2025
 Docs Loaded: {processed}
 URLS processed: {total_urls}
 DUPS skipped: {skipped}
@@ -184,3 +211,7 @@ Character Minimum Amount: 100
 
 if __name__ == "__main__":
     main(sys.argv[1:])
+
+
+#TODO
+# make state IDs into a dictionary first, then query that dict agains teach reps location (Two letter State ID)

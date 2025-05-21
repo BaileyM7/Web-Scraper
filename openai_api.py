@@ -42,7 +42,8 @@ def get_date_from_cosponsor_summary(text):
         return f"{yyyy[-2:]}{mm}{dd}"
     return None
 
-def callApiWithText(text, cosponsorContent, client, url, is_senate):
+def callApiWithText(text, cosponsorContent, client, url, is_senate, filename_only=False):
+
     """
     Processes extracted text through OpenAI's API to generate headlines 
     and press releases, building either House or Senate style prompts and filenames.
@@ -74,6 +75,14 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate):
     # For a Senate link like: https://www.congress.gov/bill/119th-congress/senate-bill/823/text
     bill_number = urlparse(url).path.rstrip("/").split("/")[-2] if url.endswith("/text") \
                   else urlparse(url).path.rstrip("/").split("/")[-1]
+    
+    if is_senate:
+        filename = f"$H billintros-{file_date}-s{bill_number}"
+    else:
+        filename = f"$H billintroh-{file_date}-hr{bill_number}"
+
+    if filename_only:
+        return filename, None, None
     
     if 'congress.gov' in url:
         # Different filename & prompt depending on House or Senate
