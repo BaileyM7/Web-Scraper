@@ -167,7 +167,7 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate, filename_onl
         headline, press_release = result.split('\n', 1)
         headline = clean_text(headline).strip()
         press_release = clean_text(press_release)
-        press_release = f"\nWASHINGTON, {today_date} -- {press_release}\n"
+        press_release = f"WASHINGTON, {today_date} -- {press_release}\n"
 
         # Second API call for cosponsor summary
         # Notice the difference in the name (H.R. vs S.) is not strictly coded here,
