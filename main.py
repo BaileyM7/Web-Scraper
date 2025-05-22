@@ -11,6 +11,7 @@ from openai_api import getKey, callApiWithText, OpenAI
 from db_insert import get_db_connection
 from scripts.populateCsv import populateCsv
 from email_utils import send_summary_email
+from openai_api import found_ids
 
 # --- Logging Setup ---
 logfile = f"scrape_log.{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
@@ -32,12 +33,15 @@ def insert_story(filename, headline, body, a_id):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+
+        # Check for duplicate filename
         check_sql = "SELECT COUNT(*) FROM story WHERE filename = %s"
         cursor.execute(check_sql, (filename,))
         if cursor.fetchone()[0] > 0:
             logging.info(f"Duplicate filename, skipping: {filename}")
             return False
 
+        # Insert into story
         insert_sql = """
         INSERT INTO story
         (filename, uname, source, by_line, headline, story_txt, editor, invoice_tag,
@@ -48,16 +52,26 @@ def insert_story(filename, headline, body, a_id):
         today_str = datetime.now().strftime('%Y-%m-%d')
         cursor.execute(insert_sql, (
             filename,
-            "M-Biz",                 # uname
-            a_id,         # source
+            "M-Biz",
+            a_id,
             "Bailey Malota",
             headline,
             body,
-            'D',                     # status
-            today_str                # content_date
+            'D',
+            today_str
         ))
+
+        # Get story ID s_id
+        s_id = cursor.lastrowid
+
+        # Insert state tags into story_tag
+        tag_insert_sql = "INSERT INTO story_tag (s_id, tag_id) VALUES (%s, %s)"
+        for state_abbr, tag_id in found_ids.items():
+            cursor.execute(tag_insert_sql, (s_id, tag_id))
+            logging.debug(f"Inserted tag for state {state_abbr} (tag_id={tag_id})")
+
         conn.commit()
-        logging.info(f"Inserted story: {filename}")
+        logging.info(f"Inserted story and {len(found_ids)} tag(s): {filename}")
         return True
     except Exception as err:
         logging.error(f"DB insert failed: {err}")
@@ -65,6 +79,7 @@ def insert_story(filename, headline, body, a_id):
     finally:
         if conn:
             conn.close()
+
 
 # --- Load Sources SQL Dump ---
 def load_sources_sql(filepath="sources.dmp.sql"):
@@ -192,7 +207,7 @@ def main(argv):
     end_time = datetime.now()
     elapsed = str(end_time - start_time).split('.')[0]
     summary = f"""
-Load Version 1.0.3 05/21/2025
+Load Version 1.0.4 05/22/2025
 Docs Loaded: {processed}
 URLS processed: {total_urls}
 DUPS skipped: {skipped}
@@ -211,7 +226,3 @@ Character Minimum Amount: 100
 
 if __name__ == "__main__":
     main(sys.argv[1:])
-
-
-#TODO
-# make state IDs into a dictionary first, then query that dict agains teach reps location (Two letter State ID)

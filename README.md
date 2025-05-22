@@ -1,4 +1,4 @@
-# Bill Processing System 1.01
+# Bill Processing System 1.04
 
 A system for automatically fetching, processing, and generating press releases from legislative bills from congress.gov and related sources.
 

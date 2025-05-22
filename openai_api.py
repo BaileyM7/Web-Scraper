@@ -5,6 +5,69 @@ from urllib.parse import urlparse
 import platform
 from cleanup_text import cleanup_text
 
+found_ids = {}
+
+# used for tagging purposes
+state_ids = {
+    'AL': 2,
+    'AK': 3,
+    'AZ': 4,
+    'AR': 5,
+    'CA': 6,
+    'CO': 7,
+    'CT': 8,
+    'DE': 9,
+    'DC': 10,
+    'FL': 11,
+    'GA': 12,
+    'HI': 13,
+    'ID': 14,
+    'IL': 15,
+    'IN': 16,
+    'IA': 17,
+    'KS': 18,
+    'KY': 19,
+    'LA': 20,
+    'ME': 21,
+    'MD': 22,
+    'MA': 23,
+    'MI': 24,
+    'MN': 25,
+    'MS': 26,
+    'MO': 27,
+    'MT': 28,
+    'NE': 29,
+    'NV': 30,
+    'NH': 31,
+    'NJ': 32,
+    'NM': 33,
+    'NY': 34,
+    'NC': 35,
+    'ND': 36,
+    'OH': 37,
+    'OK': 38,
+    'OR': 39,
+    'PA': 40,
+    'RI': 41,
+    'SC': 42,
+    'SD': 43,
+    'TN': 44,
+    'TX': 45,
+    'UT': 46,
+    'VT': 47,
+    'VA': 48,
+    'WA': 49,
+    'WV': 50,
+    'WI': 51,
+    'WY': 52,
+    'XX': 53,
+    'VI': 54,
+    'PR': 55,
+    'MP': 56,
+    'AS': 57,
+    'GU': 58
+}
+
 def getKey():
     """Retrieves the OpenAI API key from a file."""
     try:
@@ -42,12 +105,33 @@ def get_date_from_cosponsor_summary(text):
         return f"{yyyy[-2:]}{mm}{dd}"
     return None
 
+def extract_found_ids(text, cosponsorContent):
+    found_ids = {}
+    # Match [R-VA] or [D-NY-14]
+    pattern = re.compile(r'\[[DR]-([A-Z]{2})(?:-\d{1,2})?\]')
+
+    combined_text = f"{text} {cosponsorContent}"
+    matches = pattern.findall(combined_text)
+
+    for abbr in set(matches):
+        if abbr in state_ids:
+            found_ids[abbr] = state_ids[abbr]
+
+    return found_ids
+
 def callApiWithText(text, cosponsorContent, client, url, is_senate, filename_only=False):
 
     """
     Processes extracted text through OpenAI's API to generate headlines 
     and press releases, building either House or Senate style prompts and filenames.
     """
+
+    global found_ids
+    found_ids = extract_found_ids(text, cosponsorContent)
+
+    
+    # print(found_ids)
+
     today = datetime.today()
 
     text = re.sub(r'https://www\.congress\.gov[^\s]*', '', text)
