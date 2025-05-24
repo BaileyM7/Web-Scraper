@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 import platform
 from cleanup_text import cleanup_text
 
+global found_ids
 found_ids = {}
 
 # used for tagging purposes
@@ -105,18 +106,21 @@ def get_date_from_cosponsor_summary(text):
         return f"{yyyy[-2:]}{mm}{dd}"
     return None
 
-def extract_found_ids(text, cosponsorContent):
+def extract_found_ids(press_release):
+    global found_ids
     found_ids = {}
-    # Match [R-VA] or [D-NY-14]
-    pattern = re.compile(r'\[[DR]-([A-Z]{2})(?:-\d{1,2})?\]')
 
-    combined_text = f"{text} {cosponsorContent}"
-    matches = pattern.findall(combined_text)
+    # Match either [R-UT], [D-NY-14], or R-UT, D-TX (non-bracketed)
+    pattern = re.compile(r'\b[DR]-([A-Z]{2})(?:-\d{1,2})?\b')
+
+
+    matches = pattern.findall(cleanup_text(press_release))
 
     for abbr in set(matches):
         if abbr in state_ids:
             found_ids[abbr] = state_ids[abbr]
-
+    # print(found_ids)
+    # print(len(found_ids))
     return found_ids
 
 def callApiWithText(text, cosponsorContent, client, url, is_senate, filename_only=False):
@@ -125,9 +129,6 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate, filename_onl
     Processes extracted text through OpenAI's API to generate headlines 
     and press releases, building either House or Senate style prompts and filenames.
     """
-
-    global found_ids
-    found_ids = extract_found_ids(text, cosponsorContent)
 
     
     # print(found_ids)
@@ -309,15 +310,10 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate, filename_onl
         # Append cosponsor summary to the press release
         press_release += f"\n{cosponsor_summary}\n"
 
+        extract_found_ids(press_release)
+
         return filename, headline, press_release
     
     except Exception as e:
         print(f"Error calling OpenAI API: {e}")
         return "NA", "", ""
-
-
-"""
-senate has $H
-filename needs the 6 digit date
-get rid of #d for both house and senate
-"""

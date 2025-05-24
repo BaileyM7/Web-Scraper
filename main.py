@@ -6,12 +6,12 @@ import logging
 import time
 from datetime import datetime
 
-from url_processing import getUrls, getStaticUrlText, getDynamicUrlText, arr, invalidArr
+from url_processing import getUrls, getStaticUrlText, getDynamicUrlText, init_browser, close_browser, arr, invalidArr
 from openai_api import getKey, callApiWithText, OpenAI
 from db_insert import get_db_connection
 from scripts.populateCsv import populateCsv
 from email_utils import send_summary_email
-from openai_api import found_ids
+import openai_api
 
 # --- Logging Setup ---
 logfile = f"scrape_log.{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
@@ -46,8 +46,8 @@ def insert_story(filename, headline, body, a_id):
         INSERT INTO story
         (filename, uname, source, by_line, headline, story_txt, editor, invoice_tag,
          date_sent, sent_to, wire_to, nexis_sent, factiva_sent,
-         status, content_date)
-        VALUES (%s, %s, %s, %s, %s, %s, '', '', NOW(), '', '', NULL, NULL, %s, %s)
+         status, content_date, last_action)
+        VALUES (%s, %s, %s, %s, %s, %s, '', '', NOW(), '', '', NULL, NULL, %s, %s, SYSDATE())
         """
         today_str = datetime.now().strftime('%Y-%m-%d')
         cursor.execute(insert_sql, (
@@ -66,12 +66,12 @@ def insert_story(filename, headline, body, a_id):
 
         # Insert state tags into story_tag
         tag_insert_sql = "INSERT INTO story_tag (s_id, tag_id) VALUES (%s, %s)"
-        for state_abbr, tag_id in found_ids.items():
+        for state_abbr, tag_id in openai_api.found_ids.items():
             cursor.execute(tag_insert_sql, (s_id, tag_id))
             logging.debug(f"Inserted tag for state {state_abbr} (tag_id={tag_id})")
 
         conn.commit()
-        logging.info(f"Inserted story and {len(found_ids)} tag(s): {filename}")
+        logging.info(f"Inserted story and {len(openai_api.found_ids)} tag(s): {filename}")
         return True
     except Exception as err:
         logging.error(f"DB insert failed: {err}")
@@ -144,70 +144,72 @@ def main(argv):
     client = OpenAI(api_key=getKey())
     seen = set()
 
-    for url in arr:
-        canonical = url.strip().rstrip('/')
-        if canonical in seen:
-            continue
-        seen.add(canonical)
-        total_urls += 1
+    init_browser()
 
-        if 'congress.gov' in url and not url.endswith('/text'):
-            url += '/text'
+    try:
+        for url in arr:
+            canonical = url.strip().rstrip('/')
+            if canonical in seen:
+                continue
+            seen.add(canonical)
+            total_urls += 1
 
-        content = getDynamicUrlText(url) if 'congress.gov' in url else getStaticUrlText(url)
-        if not content:
-            continue
+            if 'congress.gov' in url and not url.endswith('/text'):
+                url += '/text'
 
-        cosponsorContent = getDynamicUrlText(url.replace("/text", "/cosponsors"))
+            content = getDynamicUrlText(url) if 'congress.gov' in url else getStaticUrlText(url)
+            if not content:
+                continue
 
-        # get filename only to check for duplicates
-        filename_preview, _, _ = callApiWithText(
-            text=content,
-            cosponsorContent=cosponsorContent,
-            client=client,
-            url=url,
-            is_senate=is_senate,
-            filename_only=True  
-        )
+            cosponsorContent = getDynamicUrlText(url.replace("/text", "/cosponsors"))
 
-        if not filename_preview:
-            logging.warning(f"Filename preview failed for {url}")
-            skipped += 1
-            continue
+            filename_preview, _, _ = callApiWithText(
+                text=content,
+                cosponsorContent=cosponsorContent,
+                client=client,
+                url=url,
+                is_senate=is_senate,
+                filename_only=True  
+            )
 
-        # check DB before calling GPT fully
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM story WHERE filename = %s", (filename_preview,))
-        if cursor.fetchone()[0] > 0:
-            logging.info(f"Skipping duplicate before GPT call: {filename_preview}")
-            skipped += 1
-            conn.close()
-            continue
-        conn.close()
-
-        # make full GPT call
-        filename, headline, press_release = callApiWithText(
-            text=content,
-            cosponsorContent=cosponsorContent,
-            client=client,
-            url=url,
-            is_senate=is_senate, 
-            filename_only=False
-        )
-
-        if filename and headline and press_release:
-            full_text = press_release + f"\n* * # * *\nPrimary source of information: {url}"
-            success = insert_story(filename, headline, full_text, a_id)
-            if success:
-                processed += 1
-            else:
+            if not filename_preview:
+                logging.warning(f"Filename preview failed for {url}")
                 skipped += 1
+                continue
+
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM story WHERE filename = %s", (filename_preview,))
+            if cursor.fetchone()[0] > 0:
+                logging.info(f"Skipping duplicate before GPT call: {filename_preview}")
+                skipped += 1
+                conn.close()
+                continue
+            conn.close()
+
+            filename, headline, press_release = callApiWithText(
+                text=content,
+                cosponsorContent=cosponsorContent,
+                client=client,
+                url=url,
+                is_senate=is_senate, 
+                filename_only=False
+            )
+
+            if filename and headline and press_release:
+                full_text = press_release + f"\n* * # * *\nPrimary source of information: {url}"
+                success = insert_story(filename, headline, full_text, a_id)
+                if success:
+                    processed += 1
+                else:
+                    skipped += 1
+    finally:
+        close_browser()
 
     end_time = datetime.now()
     elapsed = str(end_time - start_time).split('.')[0]
     summary = f"""
-Load Version 1.0.4 05/22/2025
+Load Version 1.0.5 05/24/2025
 Docs Loaded: {processed}
 URLS processed: {total_urls}
 DUPS skipped: {skipped}

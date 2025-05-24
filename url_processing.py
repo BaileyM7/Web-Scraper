@@ -8,10 +8,17 @@ arr = []      # Holds normalized URLs to process
 pdfs = []     # Holds PDFs only
 invalidArr = []
 
+# Shared browser/session variables
+_browser = None
+_context = None
+_page = None
+
+
 def add_invalid_url(url):
     cleaned_url = url.strip().rstrip('/').replace("/cosponsors", "").replace("/text", "")
     if cleaned_url not in invalidArr:
         invalidArr.append(cleaned_url)
+
 
 def getUrls(input_csv):
     """Loads URLs from the specified CSV file, normalizes and deduplicates them."""
@@ -62,49 +69,62 @@ def getStaticUrlText(url):
         print(f"Error fetching URL content: {e}")
         return None
 
+
+def init_browser():
+    """Initialize a reusable Playwright browser and context."""
+    global _browser, _context, _page
+    p = sync_playwright().start()
+    _browser = p.chromium.launch(
+        headless=True,
+        args=["--disable-blink-features=AutomationControlled"]
+    )
+    _context = _browser.new_context(
+        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        viewport={"width": 1920, "height": 1080},
+        locale="en-US",
+        java_script_enabled=True
+    )
+    _page = _context.new_page()
+
+
+def close_browser():
+    """Closes the reusable browser session."""
+    global _browser, _context, _page
+    if _context:
+        _context.close()
+    if _browser:
+        _browser.close()
+    _browser = None
+    _context = None
+    _page = None
+
+
 def getDynamicUrlText(url):
-    """Extracts text from a dynamically loaded web page using Playwright (stealth headless mode)."""
-    with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=True,
-            args=["--disable-blink-features=AutomationControlled"]
-        )
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            viewport={"width": 1920, "height": 1080},
-            locale="en-US",
-            java_script_enabled=True
-        )
-        page = context.new_page()
-        try:
-            page.goto(url, timeout=20000)
-            try:
-                page.wait_for_selector("body", timeout=15000)
-            except:
-                print("Main selector did not load — marking as invalid")
-                add_invalid_url(url)
-                return None
+    """Uses a shared Playwright browser session to fetch dynamic page content."""
+    global _page
+    if _page is None:
+        raise RuntimeError("Browser not initialized. Call init_browser() first.")
 
-            # Add human-like interaction
-            page.mouse.move(100, 100)
-            page.mouse.wheel(0, 1000)
-            page.keyboard.press("ArrowDown")
-            page.wait_for_timeout(3000)
+    try:
+        _page.goto(url, timeout=15000)
+        _page.wait_for_selector("body", timeout=10000)
 
-            text = BeautifulSoup(page.content(), 'html.parser').get_text()
+        _page.mouse.move(100, 100)
+        _page.keyboard.press("ArrowDown")
+        _page.wait_for_timeout(1000)
 
-            if "has not been received" in text:
-                add_invalid_url(url)
-                return None
-            else:
-                return text
+        text = BeautifulSoup(_page.content(), 'html.parser').get_text()
 
-        except Exception as e:
-            print(f"Error fetching dynamic content: {e}")
+        if "has not been received" in text:
             add_invalid_url(url)
             return None
-        finally:
-            browser.close()
+        return text
+
+    except Exception as e:
+        print(f"Error fetching dynamic content from {url}: {e}")
+        add_invalid_url(url)
+        return None
+
 
 def getPdfText(pdf_url):
     """Extracts text from a PDF file."""
