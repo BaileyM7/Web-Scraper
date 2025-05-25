@@ -65,7 +65,7 @@ def insert_story(filename, headline, body, a_id):
         s_id = cursor.lastrowid
 
         # Insert state tags into story_tag
-        tag_insert_sql = "INSERT INTO story_tag (s_id, tag_id) VALUES (%s, %s)"
+        tag_insert_sql = "INSERT INTO story_tag (id, tag_id) VALUES (%s, %s)"
         for state_abbr, tag_id in openai_api.found_ids.items():
             cursor.execute(tag_insert_sql, (s_id, tag_id))
             logging.debug(f"Inserted tag for state {state_abbr} (tag_id={tag_id})")
