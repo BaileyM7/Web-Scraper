@@ -105,7 +105,7 @@ def extract_found_ids(press_release):
     found_ids = {}
 
     # Match either [R-UT], [D-NY-14], or R-UT, D-TX (non-bracketed)
-    pattern = re.compile(r'\b[DR]-([A-Z]{2})(?:-\d{1,2})?\b')
+    pattern = re.compile(r'\b[DRI]-([A-Z]{2})(?:-\d{1,2})?\b')
 
 
     matches = pattern.findall(cleanup_text(press_release))
@@ -303,6 +303,9 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate, filename_onl
             
         # Append cosponsor summary to the press release
         press_release += f"\n{cosponsor_summary}\n"
+
+        # print("==== DEBUG: Press release text before state extraction ====")
+        # print(press_release)
 
         extract_found_ids(press_release)
 

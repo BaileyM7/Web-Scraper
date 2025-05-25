@@ -22,6 +22,8 @@ def cleanup_text(text: str, write: bool = False) -> str:
         b"\xc2\xaa": "(a)",
         b"\xc2\xab": "<<",
         b"\xc2\xac": " ",
+        b"\xe2\x80\x93": "-",  # en dash 
+        b"\xe2\x80\x94": "-",  # em dash 
         b"\xc2\xad": "",
         b"\xc2\xae": "(R)",
         b"\xc2\xaf": "",
