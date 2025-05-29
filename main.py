@@ -52,7 +52,7 @@ def insert_story(filename, headline, body, a_id):
         today_str = datetime.now().strftime('%Y-%m-%d')
         cursor.execute(insert_sql, (
             filename,
-            "M-Biz",
+            "T55-Bailey-Proj",
             a_id,
             "Bailey Malota",
             headline,
