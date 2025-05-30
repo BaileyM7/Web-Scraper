@@ -4,6 +4,7 @@ from openai import OpenAI
 from urllib.parse import urlparse
 import platform
 from cleanup_text import cleanup_text
+from url_processing import add_invalid_url
 
 global found_ids
 found_ids = {}
@@ -159,6 +160,12 @@ def callApiWithText(text, cosponsorContent, client, url, is_senate, filename_onl
         filename = f"$H billintros-{file_date}-s{bill_number}"
     else:
         filename = f"$H billintroh-{file_date}-hr{bill_number}"
+
+    # Failsafe check: stop processing if file_date was None
+    if "None" in filename:
+        print(f"Invalid filename detected (likely hallucinated): {filename} from URL: {url}")
+        add_invalid_url(url)
+        return "NA", "", ""
 
     if filename_only:
         return filename, None, None

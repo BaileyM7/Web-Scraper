@@ -106,12 +106,14 @@ def getDynamicUrlText(url):
         raise RuntimeError("Browser not initialized. Call init_browser() first.")
 
     try:
-        _page.goto(url, timeout=15000)
-        _page.wait_for_selector("body", timeout=10000)
+        _page.goto(url, timeout=17500)  # Increased from 15000 → 20000
+        _page.wait_for_selector("body", timeout=12500)  # Increased from 10000 → 15000
 
         _page.mouse.move(100, 100)
         _page.keyboard.press("ArrowDown")
-        _page.wait_for_timeout(1000)
+
+        # Increased wait buffer to give JS more time to render
+        _page.wait_for_timeout(3000)  # Increased from 1000 → 3000
 
         text = BeautifulSoup(_page.content(), 'html.parser').get_text()
 

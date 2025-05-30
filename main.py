@@ -196,6 +196,11 @@ def main(argv):
                 filename_only=False
             )
 
+            if filename == "NA" or not headline or not press_release:
+                logging.warning(f"Skipping likely hallucinated or failed output for {url}")
+                skipped += 1
+                continue
+
             if filename and headline and press_release:
                 full_text = press_release + f"\n* * # * *\nPrimary source of information: {url}"
                 success = insert_story(filename, headline, full_text, a_id)
