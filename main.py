@@ -6,7 +6,7 @@ import logging
 import time
 from datetime import datetime
 
-from url_processing import getUrls, getStaticUrlText, getDynamicUrlText, init_browser, close_browser, arr, invalidArr
+from url_processing import getUrls, getDynamicUrlText, arr, invalidArr
 from openai_api import getKey, callApiWithText, OpenAI
 from db_insert import get_db_connection
 from scripts.populateCsv import populateCsv
@@ -144,72 +144,64 @@ def main(argv):
     client = OpenAI(api_key=getKey())
     seen = set()
 
-    init_browser()
+    for url in arr:
+        canonical = url.strip().rstrip('/')
+        if canonical in seen:
+            continue
+        seen.add(canonical)
+        total_urls += 1
 
-    try:
-        for url in arr:
-            canonical = url.strip().rstrip('/')
-            if canonical in seen:
-                continue
-            seen.add(canonical)
-            total_urls += 1
+        if 'congress.gov' in url and not url.endswith('/text'):
+            url += '/text'
 
-            if 'congress.gov' in url and not url.endswith('/text'):
-                url += '/text'
+        content = getDynamicUrlText(url, is_senate)
+        if not content:
+            continue
 
-            content = getDynamicUrlText(url) if 'congress.gov' in url else getStaticUrlText(url)
-            if not content:
-                continue
+        filename_preview, _, _ = callApiWithText(
+            text=content,
+            client=client,
+            url=url,
+            is_senate=is_senate,
+            filename_only=True  
+        )
 
-            cosponsorContent = getDynamicUrlText(url.replace("/text", "/cosponsors"))
+        if not filename_preview:
+            logging.warning(f"Filename preview failed for {url}")
+            skipped += 1
+            continue
 
-            filename_preview, _, _ = callApiWithText(
-                text=content,
-                cosponsorContent=cosponsorContent,
-                client=client,
-                url=url,
-                is_senate=is_senate,
-                filename_only=True  
-            )
-
-            if not filename_preview:
-                logging.warning(f"Filename preview failed for {url}")
-                skipped += 1
-                continue
-
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM story WHERE filename = %s", (filename_preview,))
-            if cursor.fetchone()[0] > 0:
-                logging.info(f"Skipping duplicate before GPT call: {filename_preview}")
-                skipped += 1
-                conn.close()
-                continue
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM story WHERE filename = %s", (filename_preview,))
+        if cursor.fetchone()[0] > 0:
+            logging.info(f"Skipping duplicate before GPT call: {filename_preview}")
+            skipped += 1
             conn.close()
+            continue
+        conn.close()
 
-            filename, headline, press_release = callApiWithText(
-                text=content,
-                cosponsorContent=cosponsorContent,
-                client=client,
-                url=url,
-                is_senate=is_senate, 
-                filename_only=False
-            )
+        filename, headline, press_release = callApiWithText(
+            text=content,
+            client=client,
+            url=url,
+            is_senate=is_senate, 
+            filename_only=False
+        )
 
-            if filename == "NA" or not headline or not press_release:
-                logging.warning(f"Skipping likely hallucinated or failed output for {url}")
+        if filename == "NA" or not headline or not press_release:
+            logging.warning(f"Skipping likely hallucinated or failed output for {url}")
+            skipped += 1
+            continue
+
+        if filename and headline and press_release:
+            full_text = press_release + f"\n* * # * *\nPrimary source of information: {url}"
+            success = insert_story(filename, headline, full_text, a_id)
+            if success:
+                processed += 1
+            else:
                 skipped += 1
-                continue
 
-            if filename and headline and press_release:
-                full_text = press_release + f"\n* * # * *\nPrimary source of information: {url}"
-                success = insert_story(filename, headline, full_text, a_id)
-                if success:
-                    processed += 1
-                else:
-                    skipped += 1
-    finally:
-        close_browser()
 
     end_time = datetime.now()
     elapsed = str(end_time - start_time).split('.')[0]

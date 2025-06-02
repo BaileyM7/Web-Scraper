@@ -1,17 +1,11 @@
+import re
 import csv
 import requests
-import pdfplumber
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 
-arr = []      # Holds normalized URLs to process
-pdfs = []     # Holds PDFs only
+arr = []
 invalidArr = []
-
-# Shared browser/session variables
-_browser = None
-_context = None
-_page = None
 
 
 def add_invalid_url(url):
@@ -49,100 +43,63 @@ def getUrls(input_csv):
     except IOError as e:
         print(f"An I/O error occurred: {e}")
 
-def getStaticUrlText(url):
-    """Extracts text from a static URL."""
-    headers = {
-        'User-Agent': 'Mozilla/5.0',
-        'Referer': 'https://www.google.com/',
-        'Accept-Language': 'en-US,en;q=0.9'
-    }
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, 'html.parser')
-        if "has not been received" in soup.get_text():
-            add_invalid_url(url)
-            return None
-        else:
-            return soup.get_text()
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching URL content: {e}")
+# now uses api to get it instead of webscraping
+def getDynamicUrlText(url, is_senate):
+    """Fetch bill text using Congress.gov API and fallback to govinfo.gov."""
+    with open("utils/govkey.txt") as f:
+        api_key = f.read().strip()
+
+    congress = 119
+
+    match = re.search(r'/bill/(\d+)[a-z\-]*/(senate|house)-bill/(\d+)', url)
+    if not match:
+        # print(f"Unable to parse bill info from URL: {url}")
+        add_invalid_url(url)
         return None
 
+    _, bill_type_text, bill_number = match.groups()
+    bill_type = "s" if is_senate else "hr"
 
-def init_browser():
-    """Initialize a reusable Playwright browser and context."""
-    global _browser, _context, _page
-    p = sync_playwright().start()
-    _browser = p.chromium.launch(
-        headless=True,
-        args=["--disable-blink-features=AutomationControlled"]
-    )
-    _context = _browser.new_context(
-        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        viewport={"width": 1920, "height": 1080},
-        locale="en-US",
-        java_script_enabled=True
-    )
-    _page = _context.new_page()
+    api_url = f"https://api.congress.gov/v3/bill/{congress}/{bill_type}/{bill_number}/text"
+    # print(api_url)
+    headers = {"X-API-Key": api_key}
+    response = requests.get(api_url, headers=headers)
 
+    if response.status_code == 200:
+        data = response.json()
+        versions = data.get("billText", {}).get("versions", [])
+        for version in versions:
+            for fmt in version.get("formats", []):
+                if fmt["format"] == "html":
+                    html_url = fmt["url"]
+                    html_response = requests.get(html_url)
+                    if html_response.status_code == 200:
+                        text = html_response.text.replace("<html><body><pre>", "").strip()
+                        return text
+        #             else:
+        #                 print(f"Failed to fetch HTML content: {html_response.status_code}")
+        # print("HTML version not found in formats.")
+    # else:
+    #     print(f"Congress API failed: {response.status_code}")
 
-def close_browser():
-    """Closes the reusable browser session."""
-    global _browser, _context, _page
-    if _context:
-        _context.close()
-    if _browser:
-        _browser.close()
-    _browser = None
-    _context = None
-    _page = None
+    # Fallback: govinfo.gov
+    #print("Trying govinfo.gov...")
+    if is_senate:
+        govinfo_url = f"https://www.govinfo.gov/content/pkg/BILLS-{congress}{bill_type}{bill_number}is/html/BILLS-{congress}{bill_type}{bill_number}is.htm"
+    else:
 
-
-def getDynamicUrlText(url):
-    """Uses a shared Playwright browser session to fetch dynamic page content."""
-    global _page
-    if _page is None:
-        raise RuntimeError("Browser not initialized. Call init_browser() first.")
-
-    try:
-        _page.goto(url, timeout=17500)  # Increased from 15000 → 20000
-        _page.wait_for_selector("body", timeout=12500)  # Increased from 10000 → 15000
-
-        _page.mouse.move(100, 100)
-        _page.keyboard.press("ArrowDown")
-
-        # Increased wait buffer to give JS more time to render
-        _page.wait_for_timeout(3000)  # Increased from 1000 → 3000
-
-        text = BeautifulSoup(_page.content(), 'html.parser').get_text()
-
-        if "has not been received" in text:
-            add_invalid_url(url)
-            return None
-        return text
-
-    except Exception as e:
-        print(f"Error fetching dynamic content from {url}: {e}")
+        govinfo_url = f"https://www.govinfo.gov/content/pkg/BILLS-{congress}{bill_type}{bill_number}ih/html/BILLS-{congress}{bill_type}{bill_number}ih.htm"
+        
+    response = requests.get(govinfo_url)
+    if response.status_code == 200:
+        # print(f"Found bill text on govinfo.gov: {govinfo_url}")
+        return response.text
+    else:
+        # print("Bill text not yet published on govinfo.gov.")
         add_invalid_url(url)
         return None
 
 
-def getPdfText(pdf_url):
-    """Extracts text from a PDF file."""
-    try:
-        response = requests.get(pdf_url, stream=True)
-        response.raise_for_status()
-        with open("temp.pdf", "wb") as temp_pdf:
-            temp_pdf.write(response.content)
-        text = ''
-        with pdfplumber.open("temp.pdf") as pdf:
-            for page in pdf.pages:
-                text += page.extract_text() or ''
-        return text.strip()
-    except requests.exceptions.RequestException as e:
-        print(f"Error downloading PDF: {e}")
-        return None
-    except Exception as e:
-        print(f"Error reading PDF: {e}")
-        return None
+
+
+

@@ -5,6 +5,8 @@ from urllib.parse import urlparse
 import platform
 from cleanup_text import cleanup_text
 from url_processing import add_invalid_url
+import subprocess
+import ast
 
 global found_ids
 found_ids = {}
@@ -64,6 +66,7 @@ state_ids = {
  'WY' :117,                         
 }
 
+# gets the api keys
 def getKey():
     """Retrieves the OpenAI API key from a file."""
     try:
@@ -76,8 +79,8 @@ def getKey():
     except IOError as e:
         print(f"An I/O error occurred: {e}")
 
+# Cleans text for readability and ASCII compliance.
 def clean_text(text):
-    """Cleans text for readability and ASCII compliance."""
     text = cleanup_text(text)  # Replace non-ASCII chars
     text = re.sub(r'\*\*', '', text)  
     text = re.sub(r'""', '"', text)
@@ -85,21 +88,40 @@ def clean_text(text):
     text = text.strip().replace('\"', "").replace('Headline:', "").replace('headline:', "")
     return text
 
-def get_date_from_text(text):
-    pattern = r"Introduced in (?:Senate|House) \((\d{2})/(\d{2})/(\d{4})\)"
+def get_date_from_text(text, is_file):
+    """
+    Extract the introduction date after:
+    'IN THE HOUSE OF REPRESENTATIVES' or 'IN THE SENATE OF THE UNITED STATES',
+    allowing for extra text like "(legislative day, March 10)" between the date.
     
-    match = re.search(pattern, text)
+    If is_file is True, returns the date as MMDDYY (e.g., "031125").
+    If is_file is False, returns the date as MM/DD/YYYY (e.g., "03/11/2025").
+    """
+    pattern = (
+        r"IN THE (?:HOUSE OF REPRESENTATIVES|SENATE OF THE UNITED STATES)[^\n]*\n"
+        r"\s*([A-Z][a-z]+ \d{1,2})(?: \([^)]+\))?, (\d{4})"
+    )
+    match = re.search(pattern, text, flags=re.IGNORECASE)
     if match:
-        mm, dd, yyyy = match.groups()
-        return f"{yyyy[-2:]}{mm}{dd}"
+        try:
+            full_date = f"{match.group(1)}, {match.group(2)}"  # e.g., "March 11, 2025"
+            dt = datetime.strptime(full_date, "%B %d, %Y")
+            if is_file:
+                # Return as YYMMDD with leading zeros
+                return dt.strftime("%y%m%d")
+            else:
+                # Return as MM/DD/YYYY
+                return dt.strftime("%m/%d/%Y")
+        except ValueError:
+            return None
     return None
 
-def get_date_from_cosponsor_summary(text):
-    match = re.search(r'introduced on (\d{2})/(\d{2})/(\d{4})', text)
-    if match:
-        mm, dd, yyyy = match.groups()
-        return f"{yyyy[-2:]}{mm}{dd}"
-    return None
+# def get_date_from_cosponsor_summary(text):
+#     match = re.search(r'introduced on (\d{2})/(\d{2})/(\d{4})', text)
+#     if match:
+#         mm, dd, yyyy = match.groups()
+#         return f"{yyyy[-2:]}{mm}{dd}"
+#     return None
 
 def extract_found_ids(press_release):
     global found_ids
@@ -118,206 +140,154 @@ def extract_found_ids(press_release):
     # print(len(found_ids))
     return found_ids
 
-def callApiWithText(text, cosponsorContent, client, url, is_senate, filename_only=False):
-
-    """
-    Processes extracted text through OpenAI's API to generate headlines 
-    and press releases, building either House or Senate style prompts and filenames.
-    """
-
-    
-    # print(found_ids)
-
+def callApiWithText(text, client, url, is_senate, filename_only=False):
+    # gathering info to then create the output for filename, headline, and body
     today = datetime.today()
-
     text = re.sub(r'https://www\.congress\.gov[^\s]*', '', text)
-
-    # Decide how to handle month abbreviations (<=5 letters => spelled out, else abbreviate)
     month = today.strftime('%B') 
     short_month = today.strftime('%b')
     formatted_month = month if len(month) <= 5 else short_month + "."
-
-    # Use '%d' for a zero-padded day
-    day_format = '%-d' if platform.system() != 'Windows' else '%#d' # had to add this because i run the program on both mac and windows systems (very odd)
-
+    day_format = '%-d' if platform.system() != 'Windows' else '%#d'
     today_date = f"{formatted_month} {today.strftime(day_format)}"
-    file_date = get_date_from_text(text)
+    bill_number = urlparse(url).path.rstrip("/").split("/")[-2] if url.endswith("/text") else urlparse(url).path.rstrip("/").split("/")[-1]
 
-
-
-    # if file_date:
-    #     filename = f"$H billintros-{file_date}-s{bill_number}" if is_senate \
-    #         else f"$H billintroh-{file_date}-hr{bill_number}"
-    
-    # Extract final path component for the bill number
-    # For a House link like: https://www.congress.gov/bill/119th-congress/house-bill/128/text
-    # the second to last piece is "128"
-    # For a Senate link like: https://www.congress.gov/bill/119th-congress/senate-bill/823/text
-    bill_number = urlparse(url).path.rstrip("/").split("/")[-2] if url.endswith("/text") \
-                  else urlparse(url).path.rstrip("/").split("/")[-1]
-    
-    if is_senate:
-        filename = f"$H billintros-{file_date}-s{bill_number}"
-    else:
-        filename = f"$H billintroh-{file_date}-hr{bill_number}"
-
-    # Failsafe check: stop processing if file_date was None
-    if "None" in filename:
-        print(f"Invalid filename detected (likely hallucinated): {filename} from URL: {url}")
-        add_invalid_url(url)
-        return "NA", "", ""
+    file_date = get_date_from_text(text, True)
+    filename = f"$H billintros-{file_date}-s{bill_number}" if is_senate else f"$H billintroh-{file_date}-hr{bill_number}"
 
     if filename_only:
         return filename, None, None
-    
-    if 'congress.gov' in url:
-        # Different filename & prompt depending on House or Senate
-        if is_senate:
-            # Senate
-            filename = f"$H billintros-{file_date}-s{bill_number}"
-            prompt = f"""
-            Write a 300-word news story about this Senate bill, following these exact formatting rules:
-            
-            Headline:
-            - Starts with "Sen. [Last Name] Introduces [Bill Name]" 
-            (Do not include the bill number in the headline.)
 
-            First Paragraph
-            - Starts with "Sen. [First Name] [Last Name], [Party]-[State Postal Codes],"
-            - Clearly summarize the key details and purpose of the bill.
+    prompt = f"""
+    Write a 300-word news story about this {'Senate' if is_senate else 'House'} bill, following these rules:
 
-            Body Structure
-            - Use structured paragraphs with an informative flow
-            - Do not include quotes.
-            - Provide context such as:
-              * Why the bill was introduced.
-              * Its potential impact.
-              * Relevant background details.
+    Headline:
+    - Starts with {'Sen.' if is_senate else 'Rep.'} [Last Name] Introduces [Bill Name]
+    (Do not include the bill number in the headline.)
 
-            Bill Details  
-            Senator [Senator] has introduced [Bill Name]. 
-            Summary of the bill:
+    First Paragraph:
+    - Starts with {'Sen.' if is_senate else 'Rep.'} [First Name] [Last Name], [Party]-[State Postal Code],
+    - Summarize the bill's purpose.
 
-            """ + text
-        else:
-            # House
-            filename = f"$H billintroh-{file_date}-hr{bill_number}"
-            prompt = f"""
-            Write a 300-word news story about this House bill, following these exact formatting rules:
+    Body:
+    - Use structured paragraphs.
+    - No quotes.
+    - Add context (motivation, impact, background).
+    - If other people are mentioned, introduce them as {'Sen.' if is_senate else 'Rep.'} [First Name] [Last Name].
 
-            Headline:
-            - Starts with "Rep. [Last Name] Introduces [Bill Name]"
-            (Do not include the bill number in the headline.)
+    Bill Details:
+    {'Sen.' if is_senate else 'Rep.'} [Last Name] has introduced [Bill Name]. 
+    Summary of the bill:
 
-            First Paragraph
-            - Starts with "Rep. [First Name] [Last Name], [Party]-[State Postal Codes],"
-            - Clearly summarize the key details and purpose of the bill.
+    {text}
+    """
 
-            Body Structure
-            - Use structured paragraphs with an informative flow
-            - Do not include quotes.
-            - Provide context such as:
-              * Why the bill was introduced.
-              * Its potential impact.
-              * Relevant background details.
-
-            Bill Details
-            Representative [Representative] has introduced [Bill Name].
-            Summary of the bill:
-
-            """ + text
-
-    elif url.endswith(".pdf"):
-        filename = "NA"
-        prompt = (
-            "Summarize this report, prioritizing an executive summary. "
-            "If unavailable, summarize the introduction. " + text
-        )
-    else:
-        filename = "NA"
-        prompt = (
-            "Create a headline and press release summarizing the given information. "
-            "Do not include quotes." + text
-        )
-
-    # Call the model
     try:
+        # Generate main press release
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens= 2500
+            max_tokens=2500
         )
         result = response.choices[0].message.content
-        # Attempt to split the result so that the first line is the headline
-        # and everything else is the press release
-        headline, press_release = result.split('\n', 1)
-        headline = clean_text(headline).strip()
+        headline, press_body = result.split('\n', 1)
+        headline = clean_text(headline)
+        press_body = clean_text(press_body)
+        press_release = f"WASHINGTON, {today_date} -- {press_body.strip()}"
+
+        # Add cosponsor summary from CLI
+        cosummary = generate_cosponsor_summary(url, text)
+        press_release += f"\n\n{cosummary.strip()}"
+
         press_release = clean_text(press_release)
-        press_release = f"WASHINGTON, {today_date} -- {press_release}\n"
-
-        # Second API call for cosponsor summary
-        # Notice the difference in the name (H.R. vs S.) is not strictly coded here,
-        # but you could adapt. Below uses "H.R. {bill_number}" by default if is_senate=False.
-        # Or you might parse more carefully and do "S. {bill_number}" if is_senate=True.
-        if is_senate:
-            cosponsor_bill_prefix = f"S. {bill_number}"
-        else:
-            cosponsor_bill_prefix = f"H.R. {bill_number}"
-
-        cosponsor_prompt = f"""
-        Extract and summarize the cosponsors of the bill identified by its number (e.g., {cosponsor_bill_prefix}) 
-        and introduction date.
-
-        Strict Formatting Requirements:
-        - Always use **numerals** (e.g., "0", "1", "23", "101") to indicate the number of cosponsors — never write out the word form (e.g., "one", "twenty").
-        - If there are **fewer than 101** cosponsors, list each one in this exact format:
-        `[Rep. Last Name, First Name] [Party-State-District]...[Date Cosponsored]`
-        - The `...` (three dots) must always separate the district information from the date.
-        - The output must be a single sentence listing all cosponsors separated by semicolons (`;`).
-
-        - If there are **101 or more** cosponsors, return this exact sentence:
-        'The bill ({cosponsor_bill_prefix}) introduced on [Introduction Date] has [Total Number] co-sponsors.'
-
-        Examples:
-         **Correct when <101 cosponsors:**  
-        'The bill ({cosponsor_bill_prefix}) introduced on [Introduction Date] has [Total Number] co-sponsors:  
-        Rep. Smith, John [R-NY-5]...01/22/2025; Rep. Doe, Jane [D-CA-10]...01/24/2025.'
-
-         **Correct when ≥101 cosponsors:**  
-        'The bill ({cosponsor_bill_prefix}) introduced on [Introduction Date] has [Total Number] co-sponsors.'
-
-        - If there are **no cosponsors**, format the output exactly as:
-        'The bill ({cosponsor_bill_prefix}) was introduced on [Introduction Date].'
-
-        Ensure the format is exact, with no extra information or missing components.
-
-        Cosponsor data:
-        """ + cosponsorContent
-
-        cosponsor_response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": cosponsor_prompt}],
-            max_tokens=5000
-        )
-        cosponsor_summary = re.sub(r'\s+', ' ', cosponsor_response.choices[0].message.content).strip("'")
-
-        if not file_date:
-            file_date = get_date_from_cosponsor_summary(cosponsor_summary)
-        if is_senate:
-            filename = f"$H billintros-{file_date}-s{bill_number}"
-        else:
-            filename = f"$H billintroh-{file_date}-hr{bill_number}"
-            
-        # Append cosponsor summary to the press release
-        press_release += f"\n{cosponsor_summary}\n"
-
-        # print("==== DEBUG: Press release text before state extraction ====")
-        # print(press_release)
-
         extract_found_ids(press_release)
 
         return filename, headline, press_release
-    
+
     except Exception as e:
-        print(f"Error calling OpenAI API: {e}")
+        print(f"OpenAI API error: {e}")
         return "NA", "", ""
+
+# gets the cosponsor summary (now without the use of the GPT api)
+def generate_cosponsor_summary(url, text):
+    # print("TEXT:", text)
+    intro_date = get_date_from_text(text, False)
+    def parse_bill_url(url):
+        match = re.search(r'/bill/(\d+)[a-z\-]*/(senate|house)-bill/(\d+)', url)
+        if not match:
+            raise ValueError(f"Invalid Congress.gov bill URL: {url}")
+        congress, chamber, number = match.groups()
+        bill_type = "s" if chamber == "senate" else "hr"
+        bill_code = f"S. {number}" if chamber == "senate" else f"H.R. {number}"
+        return int(congress), bill_type, int(number), bill_code
+
+    def run_cli_command(endpoint):
+        result = subprocess.run(
+            ["python", "cdg_cli.py", endpoint],
+            capture_output=True,
+            text=True
+        )
+        if result.returncode != 0:
+            print("CLI call failed:\n", result.stderr)
+            return None
+        lines = result.stdout.splitlines()
+        dict_start = next((i for i, line in enumerate(lines) if line.strip().startswith("{")), None)
+        if dict_start is None:
+            print("No dict-like structure found in CLI output")
+            return None
+        raw_dict_str = "\n".join(lines[dict_start:])
+        try:
+            return ast.literal_eval(raw_dict_str)
+        except Exception as e:
+            print("Failed to parse CLI output:", e)
+            return None
+
+    # Parse URL into parts
+    try:
+        congress, bill_type, bill_number, bill_code = parse_bill_url(url)
+    except ValueError as ve:
+        return str(ve)
+
+    # Build endpoint and fetch cosponsors
+    endpoint = f"bill/{congress}/{bill_type}/{bill_number}/cosponsors"
+    all_cosponsors = []
+    while endpoint:
+        data = run_cli_command(endpoint)
+        if not data:
+            break
+        all_cosponsors.extend(data.get("cosponsors", []))
+        endpoint = None
+        if "next" in data.get("pagination", {}):
+            next_url = data["pagination"]["next"]
+            if "/v3/" in next_url:
+                endpoint = next_url.split("/v3/")[-1]
+
+    # formatting the outputs
+    count = len(all_cosponsors)
+    if not intro_date:
+        intro_date = "____/____/________"
+
+    # special output if their arent any cosponsors
+    if count > 0:
+        summary = f"\n* * # * *\nThe bill ({bill_code}) introduced on {intro_date} has {count} co-sponsor"
+        summary += "s: " if count != 1 else ": "
+
+        entries = []
+        for person in all_cosponsors:
+            first = person.get("firstName", "")
+            last = person.get("lastName", "")
+            party = person.get("party", "")
+            state = person.get("state", "")
+            date = person.get("sponsorshipDate", "Unknown Date")
+
+            first = first.capitalize()
+            last  = last.capitalize()
+
+            entries.append(f"{last}, {first} [{party}-{state}]...{date}")
+
+        summary += " ".join(entries)
+        summary += "."
+    else:
+        summary = f"\n* * # * *\nThe bill ({bill_code}) was introduced on {intro_date}."
+    return summary
+
+
