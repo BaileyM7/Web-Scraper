@@ -195,7 +195,7 @@ def main(argv):
             continue
 
         if filename and headline and press_release:
-            full_text = press_release + f"\n\n* * # * *\nPrimary source of information: {url}"
+            full_text = press_release + f"\n\n* * # * *\n\nPrimary source of information: {url}"
             success = insert_story(filename, headline, full_text, a_id)
             if success:
                 processed += 1
