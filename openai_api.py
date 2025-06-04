@@ -263,9 +263,9 @@ def generate_cosponsor_summary(url, text, is_senate, bill_num):
         date = convert_date_format(c.get('sponsorshipDate', ""))
 
         if count < num_cosponsors:
-            cosponsors_str += f"{c.get('firstName', "")} {c.get('lastName', "")}, {c.get('party', "")}-{c.get('state', "")}...{date}; "
+            cosponsors_str += f"{c.get('firstName', '')} {c.get('lastName', '')}, {c.get('party', '')}-{c.get('state', '')}...{date}; "
         else:
-            cosponsors_str += f"{c.get('firstName', "")} {c.get('lastName', "")}, {c.get('party', "")}-{c.get('state', "")}...{date}."
+            cosponsors_str += f"{c.get('firstName', '')} {c.get('lastName', '')}, {c.get('party', '')}-{c.get('state', '')}...{date}."
 
     return cosponsors_str
 
