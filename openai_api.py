@@ -4,9 +4,10 @@ from openai import OpenAI
 from urllib.parse import urlparse
 import platform
 from cleanup_text import cleanup_text
-from url_processing import add_invalid_url
+from url_processing import add_invalid_url, get_primary_sponsor
 import subprocess
 import ast
+import requests
 
 global found_ids
 found_ids = {}
@@ -152,33 +153,44 @@ def callApiWithText(text, client, url, is_senate, filename_only=False):
     bill_number = urlparse(url).path.rstrip("/").split("/")[-2] if url.endswith("/text") else urlparse(url).path.rstrip("/").split("/")[-1]
 
     file_date = get_date_from_text(text, True)
+
+    if file_date is None:
+        add_invalid_url(url)
+        return "NA", None, None
+    
     filename = f"$H billintros-{file_date}-s{bill_number}" if is_senate else f"$H billintroh-{file_date}-hr{bill_number}"
 
     if filename_only:
         return filename, None, None
+    
+    primary_sponsor, last_name = get_primary_sponsor(is_senate, 119, bill_number)
 
     prompt = f"""
     Write a 300-word news story about this {'Senate' if is_senate else 'House'} bill, following these rules:
 
     Headline:
-    - Starts with {'Sen.' if is_senate else 'Rep.'} [Last Name] Introduces [Bill Name]
+    - Starts with {'Sen.' if is_senate else 'Rep.'} {last_name} [Last Name] Introduces [Bill Name]
     (Do not include the bill number in the headline.)
 
     First Paragraph:
-    - Starts with {'Sen.' if is_senate else 'Rep.'} [First Name] [Last Name], [Party]-[State Postal Code],
+    - Start the first line with: {'Sen.' if is_senate else 'Rep.'} [First Name] [Last Name] [Party Initial]-[State Abbreviation], e.g., Rep. Julia Letlow R-LA. 
+        Do not use parentheses around the party and state. 
+        The party and state must appear without parentheses, like D-CA or R-TX.
     - Summarize the bill's purpose.
 
     Body:
     - Use structured paragraphs.
     - No quotes.
     - Add context (motivation, impact, background).
-    - If other people are mentioned, introduce them as {'Sen.' if is_senate else 'Rep.'} [First Name] [Last Name].
+    - Do not mention or list any cosponsors or other legislators by name.
+    - Focus only on the primary sponsor and the bill content.
 
     Bill Details:
     {'Sen.' if is_senate else 'Rep.'} [Last Name] has introduced [Bill Name]. 
     Summary of the bill:
-
     {text}
+    Primary Sponsor's Name and State Code: 
+    {primary_sponsor}
     """
 
     try:
@@ -232,7 +244,7 @@ def generate_cosponsor_summary(url, text):
         lines = result.stdout.splitlines()
         dict_start = next((i for i, line in enumerate(lines) if line.strip().startswith("{")), None)
         if dict_start is None:
-            print("No dict-like structure found in CLI output")
+            # print("No co-sponsors for given bill")
             return None
         raw_dict_str = "\n".join(lines[dict_start:])
         try:
@@ -268,7 +280,7 @@ def generate_cosponsor_summary(url, text):
 
     # special output if their arent any cosponsors
     if count > 0:
-        summary = f"\n* * # * *\nThe bill ({bill_code}) introduced on {intro_date} has {count} co-sponsor"
+        summary = f"\nThe bill ({bill_code}) introduced on {intro_date} has {count} co-sponsor"
         summary += "s: " if count != 1 else ": "
 
         entries = []
@@ -287,7 +299,7 @@ def generate_cosponsor_summary(url, text):
         summary += " ".join(entries)
         summary += "."
     else:
-        summary = f"\n* * # * *\nThe bill ({bill_code}) was introduced on {intro_date}."
+        summary = f"\nThe bill ({bill_code}) was introduced on {intro_date}."
     return summary
 
 

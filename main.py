@@ -190,12 +190,12 @@ def main(argv):
         )
 
         if filename == "NA" or not headline or not press_release:
-            logging.warning(f"Skipping likely hallucinated or failed output for {url}")
+            logging.warning(f"Skipped due to text not being available through api {url}")
             skipped += 1
             continue
 
         if filename and headline and press_release:
-            full_text = press_release + f"\n* * # * *\nPrimary source of information: {url}"
+            full_text = press_release + f"\n\n* * # * *\nPrimary source of information: {url}"
             success = insert_story(filename, headline, full_text, a_id)
             if success:
                 processed += 1
@@ -206,7 +206,7 @@ def main(argv):
     end_time = datetime.now()
     elapsed = str(end_time - start_time).split('.')[0]
     summary = f"""
-Load Version 1.0.5 05/24/2025
+Load Version 2.0.1 06/03/2025
 Docs Loaded: {processed}
 URLS processed: {total_urls}
 DUPS skipped: {skipped}

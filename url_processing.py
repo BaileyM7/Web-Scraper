@@ -63,7 +63,14 @@ def getDynamicUrlText(url, is_senate):
     api_url = f"https://api.congress.gov/v3/bill/{congress}/{bill_type}/{bill_number}/text"
     # print(api_url)
     headers = {"X-API-Key": api_key}
-    response = requests.get(api_url, headers=headers)
+
+    try:
+        response = requests.get(api_url, headers=headers)
+        response.raise_for_status()  # raises HTTPError for 4xx or 5xx
+    except requests.exceptions.RequestException as e:
+        print(f"[ERROR] Failed to fetch bill text for {url}: {e}")
+        add_invalid_url(url)
+        return None
 
     if response.status_code == 200:
         data = response.json()
@@ -99,7 +106,47 @@ def getDynamicUrlText(url, is_senate):
         add_invalid_url(url)
         return None
 
+def get_primary_sponsor(is_senate, num, bill_number):
+    """
+    Returns the full sponsor name string as it appears in Congress.gov API (e.g., 'Sen. Sheehy, Tim [R-MT]')
+    """
+    with open("utils/govkey.txt") as f:
+        api_key = f.read().strip()
+    
+    if is_senate:
+        congress = "s"
+    else:
+        congress = "hr"
+    
+    url = f"https://api.congress.gov/v3/bill/{num}/{congress}/{bill_number}?api_key={api_key}"
 
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+
+        sponsors = data.get("bill", {}).get("sponsors", [])
+        if not sponsors:
+            print("No sponsor data found.")
+            return None
+
+        primary = sponsors[0]
+        # print(primary.get("fullName", None))
+        # print(primary.get("fullName", None))
+        match = re.match(r"^(?:Rep\.|Sen\.|Del\.)\s+([A-Za-z\-'\s]+?),", primary.get("fullName", None))
+        # last_name = primary.get("fullName", None).split(',')[0]
+        # print(left_of_comma)
+        last_name = match.group(1)
+        # print(last_name)
+        full_name = primary.get("fullName", None).split('.', 1)[1].strip()
+        full_name = re.sub(r"\[(\w+)-(\w+)-\d+\]", r"[\1-\2]", full_name)
+        full_name = full_name.replace("-At Large", "")
+        # print(full_name)
+        return full_name, last_name
+
+    except requests.exceptions.RequestException as e:
+        print(f"No info found: {e}")
+        return None
 
 
 
