@@ -208,8 +208,8 @@ def callApiWithText(text, client, url, is_senate, filename_only=False):
         press_release = f"WASHINGTON, {today_date} -- {press_body.strip()}"
 
         # Add cosponsor summary from CLI
-        cosummary = generate_cosponsor_summary(url, text)
-        press_release += f"\n\n{cosummary.strip()}"
+        cosummary = generate_cosponsor_summary(url, text, is_senate, bill_number)
+        press_release += f"\n\n{cosummary}"
 
         press_release = clean_text(press_release)
         extract_found_ids(press_release)
@@ -221,86 +221,50 @@ def callApiWithText(text, client, url, is_senate, filename_only=False):
         return "NA", "", ""
 
 # gets the cosponsor summary (now without the use of the GPT api)
-def generate_cosponsor_summary(url, text):
-    # print("TEXT:", text)
+def generate_cosponsor_summary(url, text, is_senate, bill_num):
+
     intro_date = get_date_from_text(text, False)
-    def parse_bill_url(url):
-        match = re.search(r'/bill/(\d+)[a-z\-]*/(senate|house)-bill/(\d+)', url)
-        if not match:
-            raise ValueError(f"Invalid Congress.gov bill URL: {url}")
-        congress, chamber, number = match.groups()
-        bill_type = "s" if chamber == "senate" else "hr"
-        bill_code = f"S. {number}" if chamber == "senate" else f"H.R. {number}"
-        return int(congress), bill_type, int(number), bill_code
+    congress_num = 119
 
-    def run_cli_command(endpoint):
-        result = subprocess.run(
-            ["python", "cdg_cli.py", endpoint],
-            capture_output=True,
-            text=True
-        )
-        if result.returncode != 0:
-            print("CLI call failed:\n", result.stderr)
-            return None
-        lines = result.stdout.splitlines()
-        dict_start = next((i for i, line in enumerate(lines) if line.strip().startswith("{")), None)
-        if dict_start is None:
-            # print("No co-sponsors for given bill")
-            return None
-        raw_dict_str = "\n".join(lines[dict_start:])
-        try:
-            return ast.literal_eval(raw_dict_str)
-        except Exception as e:
-            print("Failed to parse CLI output:", e)
-            return None
+    # setting labels determined by is_senate
+    title = "Sen. " if is_senate else "Rep. "
+    label = "S. " if is_senate else "H.R. "
+    url_label = "s" if is_senate else "hr"
 
-    # Parse URL into parts
-    try:
-        congress, bill_type, bill_number, bill_code = parse_bill_url(url)
-    except ValueError as ve:
-        return str(ve)
+    # creating the url to be used in the get request
+    url = (
+        f"https://api.congress.gov/v3/bill/{congress_num}/{url_label}/{bill_num}/cosponsors" if is_senate 
+        else f"https://api.congress.gov/v3/bill/{congress_num}/{url_label}/{bill_num}/cosponsors"
+    )
 
-    # Build endpoint and fetch cosponsors
-    endpoint = f"bill/{congress}/{bill_type}/{bill_number}/cosponsors"
-    all_cosponsors = []
-    while endpoint:
-        data = run_cli_command(endpoint)
-        if not data:
-            break
-        all_cosponsors.extend(data.get("cosponsors", []))
-        endpoint = None
-        if "next" in data.get("pagination", {}):
-            next_url = data["pagination"]["next"]
-            if "/v3/" in next_url:
-                endpoint = next_url.split("/v3/")[-1]
+    # grabbing gov data api key
+    api_key = ""
+    with open("utils/govkey.txt", "r") as file:
+                api_key =  file.readline().strip()
+    parameters = {
+        "api_key": api_key,
+        "limit": 500
+    }
 
-    # formatting the outputs
-    count = len(all_cosponsors)
-    if not intro_date:
-        intro_date = "____/____/________"
+    # getting the json response
+    response = requests.get(url, parameters)
+    cosponsors = response.json()['cosponsors']
 
-    # special output if their arent any cosponsors
-    if count > 0:
-        summary = f"\nThe bill ({bill_code}) introduced on {intro_date} has {count} co-sponsor"
-        summary += "s: " if count != 1 else ": "
+    # print(cosponsors)
+    num_cosponsors = len(cosponsors)
 
-        entries = []
-        for person in all_cosponsors:
-            first = person.get("firstName", "")
-            last = person.get("lastName", "")
-            party = person.get("party", "")
-            state = person.get("state", "")
-            date = person.get("sponsorshipDate", "Unknown Date")
+    # creating and formatting the total paragram
+    cosponsors_str = f"The bill ({label}{bill_num}) introduced on {intro_date} has {num_cosponsors} co-sponsors: "
+    count = 0
+    if num_cosponsors == 0:
+        cosponsors_str = f"The bill ({label}{bill_num}) was introduced on {intro_date}."
+    for c in cosponsors:
+        count += 1
+        if count < num_cosponsors:
+            cosponsors_str += f"{c.get('lastName', "")}, {c.get('firstName', "")} [{c.get('party', "")}-{c.get('state', "")}]...{c.get('sponsorshipDate', "")}; "
+        else:
+            cosponsors_str += f"{c.get('lastName', "")}, {c.get('firstName', "")} [{c.get('party', "")}-{c.get('state', "")}]...{c.get('sponsorshipDate', "")}."
 
-            first = first.capitalize()
-            last  = last.capitalize()
-
-            entries.append(f"{last}, {first} [{party}-{state}]...{date}")
-
-        summary += " ".join(entries)
-        summary += "."
-    else:
-        summary = f"\nThe bill ({bill_code}) was introduced on {intro_date}."
-    return summary
+    return cosponsors_str
 
 
