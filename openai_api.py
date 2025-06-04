@@ -173,10 +173,11 @@ def callApiWithText(text, client, url, is_senate, filename_only=False):
     (Do not include the bill number in the headline.)
 
     First Paragraph:
-    - Start the first line with: {'Sen.' if is_senate else 'Rep.'} [First Name] [Last Name] [Party Initial]-[State Abbreviation], e.g., Rep. Julia Letlow R-LA. 
-        Do not use parentheses around the party and state. 
-        The party and state must appear without parentheses, like D-CA or R-TX.
-    - Summarize the bill's purpose.
+    - Start the first line with: {'Sen.' if is_senate else 'Rep.'} [First Name] [Last Name], [Party Initial]-[State Abbreviation], e.g., Rep. Julia Letlow, R-LA,
+    - Do not use parentheses around the party and state.
+    - There must be a comma both before and after the party-state block — like: Sen. Tim Scott, R-SC,
+    - Summarize the bill’s purpose.
+
 
     Body:
     - Use structured paragraphs.
