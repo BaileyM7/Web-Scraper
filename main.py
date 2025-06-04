@@ -6,7 +6,7 @@ import logging
 import time
 from datetime import datetime
 
-from url_processing import getUrls, getDynamicUrlText, arr, invalidArr
+from url_processing import getUrls, getDynamicUrlText, arr, invalidArr, add_invalid_url
 from openai_api import getKey, callApiWithText, OpenAI
 from db_insert import get_db_connection
 from scripts.populateCsv import populateCsv
@@ -107,6 +107,29 @@ def load_sources_sql(filepath="sources.dmp.sql"):
         if conn:
             conn.close()
 
+# adding back all of the urls that werent scrapped
+def add_urls_to_csv(invalidArr, is_senate):
+    total = 0
+    if is_senate:
+        with open("csv/senate.csv", "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            for url in invalidArr:
+                writer.writerow([url])
+                total += 1
+    else:
+        with open("csv/house.csv", "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                for url in invalidArr:
+                    writer.writerow([url])
+                    total += 1
+
+    #  putting logging info
+    if is_senate:
+        logging.info(f"Wrote {total} URLs back to senate.csv to be evaluated tommorow")   
+    else:
+        logging.info(f"Wrote {total} URLs back to house.csv to be evaluated tommorow")
+
+
 # --- Main Processing ---
 def main(argv):
     start_time = datetime.now()
@@ -177,6 +200,7 @@ def main(argv):
         if cursor.fetchone()[0] > 0:
             logging.info(f"Skipping duplicate before GPT call: {filename_preview}")
             skipped += 1
+            add_invalid_url(url)
             conn.close()
             continue
         conn.close()
@@ -202,6 +226,8 @@ def main(argv):
             else:
                 skipped += 1
 
+    #  rewriting the urls to the csv
+    add_urls_to_csv(invalidArr, is_senate)
 
     end_time = datetime.now()
     elapsed = str(end_time - start_time).split('.')[0]

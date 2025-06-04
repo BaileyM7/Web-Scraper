@@ -260,11 +260,28 @@ def generate_cosponsor_summary(url, text, is_senate, bill_num):
         cosponsors_str = f"The bill ({label}{bill_num}) was introduced on {intro_date}."
     for c in cosponsors:
         count += 1
+        date = convert_date_format(c.get('sponsorshipDate', ""))
+
         if count < num_cosponsors:
-            cosponsors_str += f"{c.get('lastName', "")}, {c.get('firstName', "")} [{c.get('party', "")}-{c.get('state', "")}]...{c.get('sponsorshipDate', "")}; "
+            cosponsors_str += f"{c.get('firstName', "")} {c.get('lastName', "")}, {c.get('party', "")}-{c.get('state', "")}...{date}; "
         else:
-            cosponsors_str += f"{c.get('lastName', "")}, {c.get('firstName', "")} [{c.get('party', "")}-{c.get('state', "")}]...{c.get('sponsorshipDate', "")}."
+            cosponsors_str += f"{c.get('firstName', "")} {c.get('lastName', "")}, {c.get('party', "")}-{c.get('state', "")}...{date}."
 
     return cosponsors_str
 
 
+def convert_date_format(date_str):
+    """
+    Convert a date from 'YYYY-MM-DD' to 'MM/DD/YYYY' format.
+    
+    Args:
+        date_str (str): A date string in 'YYYY-MM-DD' format.
+        
+    Returns:
+        str: The date in 'MM/DD/YYYY' format.
+    """
+    try:
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+        return dt.strftime("%m/%d/%Y")
+    except ValueError:
+        return "Invalid date format"
