@@ -137,6 +137,7 @@ def main(argv):
     populate_first = False
     is_senate = None
     a_id = 0
+    stopped = False
 
     try:
         opts, args = getopt.getopt(argv, "Psh")
@@ -193,7 +194,7 @@ def main(argv):
             logging.warning(f"Filename preview failed for {url}")
             skipped += 1
             continue
-
+        
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM story WHERE filename = %s", (filename_preview,))
@@ -204,7 +205,7 @@ def main(argv):
             conn.close()
             continue
         conn.close()
-
+        
         filename, headline, press_release = callApiWithText(
             text=content,
             client=client,
@@ -213,6 +214,12 @@ def main(argv):
             filename_only=False
         )
 
+        # print(f"FILENAME: {filename} \n\n HEADLINE: {headline} \n\n PRESS_RELEASE: {press_release}")
+
+        if filename == "STOP":
+            stopped = True
+            break
+        
         if filename == "NA" or not headline or not press_release:
             logging.warning(f"Skipped due to text not being available through api {url}")
             skipped += 1
@@ -225,18 +232,20 @@ def main(argv):
                 processed += 1
             else:
                 skipped += 1
-
+        
     #  rewriting the urls to the csv
-    add_urls_to_csv(invalidArr, is_senate)
+    if not stopped:
+        add_urls_to_csv(invalidArr, is_senate)
 
     end_time = datetime.now()
     elapsed = str(end_time - start_time).split('.')[0]
     summary = f"""
-Load Version 2.0.1 06/03/2025
+Load Version 2.0.1 06/05/2025
 Docs Loaded: {processed}
 URLS processed: {total_urls}
 DUPS skipped: {skipped}
 No Ledes found: 0
+Stopped Due to Rate Limit: {stopped}
 
 Passed Parameters:
 Pull House and Senate: {'Senate' if is_senate else 'House'}
