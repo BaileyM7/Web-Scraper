@@ -12,7 +12,7 @@ def send_summary_email(msg_txt, to_addrs=None, from_addr="kmeek@targetednews.com
     password = "jsfL6Hqa"
 
     if to_addrs is None:
-        to_addrs = ["kmeek@targetednews.com", "bmalota08@gmail.com"]
+        to_addrs = ["kmeek@targetednews.com", "bmalota08@gmail.com", "marlynvitin@yahoo.com", "struckvail@aol.com"]
     elif isinstance(to_addrs, str):
         to_addrs = [to_addrs]
 
