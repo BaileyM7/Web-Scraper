@@ -5,8 +5,6 @@ from urllib.parse import urlparse
 import platform
 from cleanup_text import cleanup_text
 from url_processing import add_invalid_url, get_primary_sponsor
-import subprocess
-import ast
 import requests
 
 global found_ids
@@ -86,6 +84,7 @@ def clean_text(text):
     text = re.sub(r'\*\*', '', text)  
     text = re.sub(r'""', '"', text)
     text = re.sub(r'###', '', text)
+    text = text.replace("[NEWLINE SEPARATOR]", "")
     text = text.strip().replace('\"', "").replace('Headline:', "").replace('headline:', "")
     return text
 
@@ -163,7 +162,15 @@ def callApiWithText(text, client, url, is_senate, filename_only=False):
     if filename_only:
         return filename, None, None
     
-    primary_sponsor, last_name = get_primary_sponsor(is_senate, 119, bill_number)
+    fullname, last_name = get_primary_sponsor(is_senate, 119, bill_number)
+
+    if fullname == "STOP":
+        add_invalid_url(url)
+        return "STOP", None, None
+    
+    if fullname == "" or last_name == "":
+        add_invalid_url(url)
+        return "NA", None, None
 
     prompt = f"""
     Write a 300-word news story about this {'Senate' if is_senate else 'House'} bill, following these rules:
@@ -172,9 +179,10 @@ def callApiWithText(text, client, url, is_senate, filename_only=False):
     - Starts with {'Sen.' if is_senate else 'Rep.'} {last_name} [Last Name] Introduces [Bill Name]
     (Do not include the bill number in the headline.)
 
+    [NEWLINE SEPARATOR]
+
     First Paragraph:
-    - Start the first line with: {'Sen.' if is_senate else 'Rep.'} [First Name] [Last Name], [Party Initial]-[State Abbreviation], e.g., Rep. Julia Letlow, R-LA,
-    - Do not use parentheses around the party and state.
+    - Start the first line with: {'Sen.' if is_senate else 'Rep.'} {fullname}
     - There must be a comma both before and after the party-state block — like: Sen. Tim Scott, R-SC,
     - Summarize the bill’s purpose.
 
@@ -191,7 +199,7 @@ def callApiWithText(text, client, url, is_senate, filename_only=False):
     Summary of the bill:
     {text}
     Primary Sponsor's Name and State Code: 
-    {primary_sponsor}
+    {fullname}
     """
 
     try:
@@ -201,14 +209,29 @@ def callApiWithText(text, client, url, is_senate, filename_only=False):
             messages=[{"role": "user", "content": prompt}],
             max_tokens=2500
         )
-        result = response.choices[0].message.content
-        headline, press_body = result.split('\n', 1)
-        headline = clean_text(headline)
-        press_body = clean_text(press_body)
+        result = response.choices[0].message.content.strip()
+        parts = result.split('\n', 1)
+
+        if len(parts) != 2:
+            add_invalid_url(url)
+            print(f"Headline Wasnt Parsed Right")
+            return "NA", None, None 
+
+        headline_raw = parts[0]
+        body_raw = parts[1]
+
+        headline = clean_text(headline_raw)
+        press_body = clean_text(body_raw)
+
         press_release = f"WASHINGTON, {today_date} -- {press_body.strip()}"
 
         # Add cosponsor summary from CLI
         cosummary = generate_cosponsor_summary(url, text, is_senate, bill_number)
+        if cosummary == -1:
+            return "NA", None, None
+        elif cosummary == 429:
+            return "STOP", None, None
+        
         press_release += f"\n\n{cosummary}"
 
         press_release = clean_text(press_release)
@@ -218,7 +241,7 @@ def callApiWithText(text, client, url, is_senate, filename_only=False):
 
     except Exception as e:
         print(f"OpenAI API error: {e}")
-        return "NA", "", ""
+        return "NA", None, None
 
 # gets the cosponsor summary (now without the use of the GPT api)
 def generate_cosponsor_summary(url, text, is_senate, bill_num):
@@ -227,7 +250,6 @@ def generate_cosponsor_summary(url, text, is_senate, bill_num):
     congress_num = 119
 
     # setting labels determined by is_senate
-    title = "Sen. " if is_senate else "Rep. "
     label = "S. " if is_senate else "H.R. "
     url_label = "s" if is_senate else "hr"
 
@@ -243,15 +265,30 @@ def generate_cosponsor_summary(url, text, is_senate, bill_num):
                 api_key =  file.readline().strip()
     parameters = {
         "api_key": api_key,
-        "limit": 500
+        "limit": 250
     }
 
     # getting the json response
-    response = requests.get(url, parameters)
-    cosponsors = response.json()['cosponsors']
+    try: 
+        response = requests.get(url, parameters)
 
-    # print(cosponsors)
-    num_cosponsors = len(cosponsors)
+        response.raise_for_status()  # Required to trigger HTTPError
+
+        cosponsors = response.json()['cosponsors']
+        # print(cosponsors)
+        num_cosponsors = len(cosponsors)
+
+    except requests.exceptions.HTTPError as e:
+        status = response.status_code
+        if status == 502:
+            print(f"502 Bad Gateway for URL: {url}")
+            return -1
+        elif status == 429:
+            print(f"429 Too Many Requests for URL: {url}")
+            return 429
+        else:
+            print(f"HTTP error {status} for URL: {url}")
+            return -1
 
     # creating and formatting the total paragram
     cosponsors_str = f"The bill ({label}{bill_num}) introduced on {intro_date} has {num_cosponsors} co-sponsors: "
@@ -260,12 +297,12 @@ def generate_cosponsor_summary(url, text, is_senate, bill_num):
         cosponsors_str = f"The bill ({label}{bill_num}) was introduced on {intro_date}."
     for c in cosponsors:
         count += 1
-        date = convert_date_format(c.get('sponsorshipDate', ""))
+        # date = convert_date_format(c.get('sponsorshipDate', ""))
 
         if count < num_cosponsors:
-            cosponsors_str += f"{c.get('firstName', '')} {c.get('lastName', '')}, {c.get('party', '')}-{c.get('state', '')}...{date}; "
+            cosponsors_str += f"{c.get('firstName', '').capitalize()} {c.get('lastName', '').capitalize()}, {c.get('party', '')}-{c.get('state', '')}; "
         else:
-            cosponsors_str += f"{c.get('firstName', '')} {c.get('lastName', '')}, {c.get('party', '')}-{c.get('state', '')}...{date}."
+            cosponsors_str += f"{c.get('firstName', '').capitalize()} {c.get('lastName', '').capitalize()}, {c.get('party', '')}-{c.get('state', '')}."
 
     return cosponsors_str
 

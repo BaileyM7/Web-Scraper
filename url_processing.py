@@ -106,47 +106,54 @@ def getDynamicUrlText(url, is_senate):
         add_invalid_url(url)
         return None
 
-def get_primary_sponsor(is_senate, num, bill_number):
+def get_primary_sponsor(is_senate, congress_num, bill_number):
     """
     Returns the full sponsor name string as it appears in Congress.gov API (e.g., 'Sen. Sheehy, Tim [R-MT]')
     """
     with open("utils/govkey.txt") as f:
         api_key = f.read().strip()
     
-    if is_senate:
-        congress = "s"
-    else:
-        congress = "hr"
-    
-    url = f"https://api.congress.gov/v3/bill/{num}/{congress}/{bill_number}?api_key={api_key}"
+    # title = "Sen. " if is_senate else "Rep. "
+    # label = "S. " if is_senate else "H.R. "
+    url_label = "s" if is_senate else "hr"
 
-    try:
-        response = requests.get(url)
+    url = (
+      f"https://api.congress.gov/v3/bill/{congress_num}/{url_label}/{bill_number}" if is_senate 
+    else f"https://api.congress.gov/v3/bill/{congress_num}/{url_label}/{bill_number}"
+    )
+
+    parameters = {
+    "api_key": api_key,
+    "limit": 250
+    }
+    try: 
+        response = requests.get(url, parameters)
         response.raise_for_status()
-        data = response.json()
+        sponsor = response.json()['bill']['sponsors']
 
-        sponsors = data.get("bill", {}).get("sponsors", [])
-        if not sponsors:
-            print("No sponsor data found.")
-            return None
+    except requests.exceptions.HTTPError as e:
+        status = response.status_code
+        if status == 502:
+            print(f"502 Bad Gateway for URL: {url}")
+            return "", ""
+        elif status == 429:
+            print(f"429 Too Many Requests for URL: {url}")
+            return "STOP", ""
+        else:
+            print(f"HTTP error {status} for URL: {url}")
+            return "", ""
+    
+    sponsor_str = ""
+    last_name = ""
 
-        primary = sponsors[0]
-        # print(primary.get("fullName", None))
-        # print(primary.get("fullName", None))
-        match = re.match(r"^(?:Rep\.|Sen\.|Del\.)\s+([A-Za-z\-'\s]+?),", primary.get("fullName", None))
-        # last_name = primary.get("fullName", None).split(',')[0]
-        # print(left_of_comma)
-        last_name = match.group(1)
-        # print(last_name)
-        full_name = primary.get("fullName", None).split('.', 1)[1].strip()
-        full_name = re.sub(r"\[(\w+)-(\w+)-\d+\]", r"[\1-\2]", full_name)
-        full_name = full_name.replace("-At Large", "")
-        # print(full_name)
-        return full_name, last_name
+    if not sponsor:
+        print(f"No sponsors found for {url}")
+        return "", ""
 
-    except requests.exceptions.RequestException as e:
-        print(f"No info found: {e}")
-        return None
+    for s in sponsor: 
+        sponsor_str += f"{s['firstName'].capitalize()} {s['lastName'].capitalize()}, {s['party']}-{s['state']},"
+        last_name = s['lastName'].capitalize()
 
+    return sponsor_str, last_name
 
 
