@@ -16,6 +16,7 @@ def cleanup_text(text: str, write: bool = False) -> str:
         b"\xc2\xa3": "pound sterling",
         b"\xc2\xa4": "#",
         b"\xc2\xa5": "Yen",
+        b"\xc2\xa7\xc2\xa7": "Sub Sec.",
         b"\xc2\xa7": "Sec.",
         b"\xc2\xa8": "~",
         b"\xc2\xa9": " Copyright (c) ",
