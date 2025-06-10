@@ -254,10 +254,7 @@ def generate_cosponsor_summary(url, text, is_senate, bill_num):
     url_label = "s" if is_senate else "hr"
 
     # creating the url to be used in the get request
-    url = (
-        f"https://api.congress.gov/v3/bill/{congress_num}/{url_label}/{bill_num}/cosponsors" if is_senate 
-        else f"https://api.congress.gov/v3/bill/{congress_num}/{url_label}/{bill_num}/cosponsors"
-    )
+    url = f"https://api.congress.gov/v3/bill/{congress_num}/{url_label}/{bill_num}/cosponsors"  
 
     # grabbing gov data api key
     api_key = ""
@@ -275,6 +272,8 @@ def generate_cosponsor_summary(url, text, is_senate, bill_num):
         response.raise_for_status()  # Required to trigger HTTPError
 
         cosponsors = response.json()['cosponsors']
+        urls = [c['url'] for c in cosponsors]
+
         # print(cosponsors)
         num_cosponsors = len(cosponsors)
 
@@ -293,17 +292,32 @@ def generate_cosponsor_summary(url, text, is_senate, bill_num):
     # creating and formatting the total paragram
     cosponsors_str = f"The bill ({label}{bill_num}) introduced on {intro_date} has {num_cosponsors} co-sponsors: "
     count = 0
+
     if num_cosponsors == 0:
         cosponsors_str = f"The bill ({label}{bill_num}) was introduced on {intro_date}."
-    for c in cosponsors:
+        return cosponsors_str
+
+    for url in urls:
         count += 1
-        # date = convert_date_format(c.get('sponsorshipDate', ""))
 
+        # gettings the direct order name, the party abreviation, and the state code
+        try: 
+            curr_cosponsor = requests.get(url, parameters)
+            member_data = curr_cosponsor.json().get("member", {})
+            party = member_data.get("partyHistory", [{}])[0].get("partyAbbreviation", '')
+            state = member_data.get("terms", [{}])[-1].get("stateCode", '')  # get the latest term stateCode
+            name = member_data.get("directOrderName", '')
+
+        # if it fails, try agian on next scrape
+        except Exception as e:
+            print(f"Error fetching cosponsor data from {url}: {e}")
+            return -1
+
+        # pprint.pp(curr_cosponsor.json())
         if count < num_cosponsors:
-            cosponsors_str += f"{c.get('firstName', '').capitalize()} {c.get('lastName', '').capitalize()}, {c.get('party', '')}-{c.get('state', '')}; "
+            cosponsors_str += f"{name}, {party}-{state}; "
         else:
-            cosponsors_str += f"{c.get('firstName', '').capitalize()} {c.get('lastName', '').capitalize()}, {c.get('party', '')}-{c.get('state', '')}."
-
+            cosponsors_str += f"{name}, {party}-{state}."
     return cosponsors_str
 
 

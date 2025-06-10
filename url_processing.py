@@ -117,19 +117,24 @@ def get_primary_sponsor(is_senate, congress_num, bill_number):
     # label = "S. " if is_senate else "H.R. "
     url_label = "s" if is_senate else "hr"
 
-    url = (
-      f"https://api.congress.gov/v3/bill/{congress_num}/{url_label}/{bill_number}" if is_senate 
-    else f"https://api.congress.gov/v3/bill/{congress_num}/{url_label}/{bill_number}"
-    )
+    url = f"https://api.congress.gov/v3/bill/{congress_num}/{url_label}/{bill_number}" 
 
     parameters = {
     "api_key": api_key,
     "limit": 250
     }
+    
     try: 
+        # first request
         response = requests.get(url, parameters)
         response.raise_for_status()
         sponsor = response.json()['bill']['sponsors']
+
+        # second request
+        name_url = sponsor[0]['url']
+        directOrderID = requests.get(name_url, parameters)
+        sponsor_name = directOrderID.json()['member']['directOrderName']
+        last_name = directOrderID.json()['member']['lastName']
 
     except requests.exceptions.HTTPError as e:
         status = response.status_code
@@ -144,15 +149,12 @@ def get_primary_sponsor(is_senate, congress_num, bill_number):
             return "", ""
     
     sponsor_str = ""
-    last_name = ""
 
     if not sponsor:
         print(f"No sponsors found for {url}")
         return "", ""
 
-    for s in sponsor: 
-        sponsor_str += f"{s['firstName'].capitalize()} {s['lastName'].capitalize()}, {s['party']}-{s['state']},"
-        last_name = s['lastName'].capitalize()
+    sponsor_str += f"{sponsor_name}, {sponsor[0]['party']}-{sponsor[0]['state']},"
 
     return sponsor_str, last_name
 
