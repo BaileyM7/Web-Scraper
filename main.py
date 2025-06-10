@@ -201,7 +201,7 @@ def main(argv):
         if cursor.fetchone()[0] > 0:
             logging.info(f"Skipping duplicate before GPT call: {filename_preview}")
             skipped += 1
-            add_invalid_url(url)
+            # add_invalid_url(url)
             conn.close()
             continue
         conn.close()
