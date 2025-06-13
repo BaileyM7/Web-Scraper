@@ -296,7 +296,27 @@ def generate_cosponsor_summary(url, text, is_senate, bill_num):
     if num_cosponsors == 0:
         cosponsors_str = f"The bill ({label}{bill_num}) was introduced on {intro_date}."
         return cosponsors_str
+    
+    if num_cosponsors == 1:
 
+        cosponsors_str = f"The bill ({label}{bill_num}) introduced on {intro_date} has {num_cosponsors} co-sponsor: "
+
+        try: 
+            curr_cosponsor = requests.get(urls[0], parameters)
+            member_data = curr_cosponsor.json().get("member", {})
+            party = member_data.get("partyHistory", [{}])[0].get("partyAbbreviation", '')
+            state = member_data.get("terms", [{}])[-1].get("stateCode", '')  # get the latest term stateCode
+            name = member_data.get("directOrderName", '')
+
+        # if it fails, try agian on next scrape
+        except Exception as e:
+            print(f"Error fetching cosponsor data from {url}: {e}")
+            return -1
+        
+        cosponsors_str += f"{name}, {party}-{state}."
+
+        return cosponsors_str
+    
     for url in urls:
         count += 1
 

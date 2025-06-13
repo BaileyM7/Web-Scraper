@@ -240,7 +240,7 @@ def main(argv):
     end_time = datetime.now()
     elapsed = str(end_time - start_time).split('.')[0]
     summary = f"""
-Load Version 2.0.1 06/05/2025
+Load Version 2.1.0 06/13/2025
 Docs Loaded: {processed}
 URLS processed: {total_urls}
 DUPS skipped: {skipped}
@@ -256,7 +256,7 @@ Elapsed Time: {elapsed}
 Character Minimum Amount: 100
 """
     logging.info(summary)
-    send_summary_email(summary)
+    send_summary_email(summary, is_senate)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
