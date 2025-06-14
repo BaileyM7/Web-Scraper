@@ -10,7 +10,7 @@ def send_summary_email(msg_txt, is_senate, to_addrs=None, from_addr="kmeek@targe
     port = 587
     sender_email = "kmeek@targetednews.com"
     password = "jsfL6Hqa"
-    subject += {'Senate' if is_senate else 'House'}
+    subject += 'Senate' if is_senate else 'House'
 
     if to_addrs is None:
         to_addrs = ["kmeek@targetednews.com", "bmalota08@gmail.com", "marlynvitin@yahoo.com", "struckvail@aol.com"]
