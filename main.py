@@ -240,23 +240,23 @@ def main(argv):
     end_time = datetime.now()
     elapsed = str(end_time - start_time).split('.')[0]
     summary = f"""
-Load Version 2.1.0 06/13/2025
+Load Version 2.2.0 06/17/2025
+
+Passed Parameters: {' -P' if populate_first else ''} {' -S' if is_senate else ' -H'}
+Pull House and Senate: {'Senate' if is_senate else 'House'}
+
 Docs Loaded: {processed}
-URLS processed: {total_urls}
 DUPS skipped: {skipped}
-No Ledes found: 0
+Total URLS looked at: {total_urls}
+
 Stopped Due to Rate Limit: {stopped}
 
-Passed Parameters:
-Pull House and Senate: {'Senate' if is_senate else 'House'}
-Number of days back: 1
 Start Time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}
 End Time: {end_time.strftime('%Y-%m-%d %H:%M:%S')}
 Elapsed Time: {elapsed}
-Character Minimum Amount: 100
 """
     logging.info(summary)
     send_summary_email(summary, is_senate)
-
+    
 if __name__ == "__main__":
     main(sys.argv[1:])
