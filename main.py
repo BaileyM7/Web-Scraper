@@ -240,13 +240,13 @@ def main(argv):
     end_time = datetime.now()
     elapsed = str(end_time - start_time).split('.')[0]
     summary = f"""
-Load Version 2.2.0 06/17/2025
+Load Version 2.2.1 06/18/2025
 
 Passed Parameters: {' -P' if populate_first else ''} {' -S' if is_senate else ' -H'}
 Pull House and Senate: {'Senate' if is_senate else 'House'}
 
 Docs Loaded: {processed}
-DUPS skipped: {skipped}
+URLS held for re-evaluation: {skipped}
 Total URLS looked at: {total_urls}
 
 Stopped Due to Rate Limit: {stopped}
