@@ -1,93 +1,89 @@
-from playwright.sync_api import sync_playwright
-from bs4 import BeautifulSoup
 import re
-import csv
+from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
+from db_insert import get_db_connection
 
-def getDynamicUrlText(url):
-    """Extracts the most recent bill number from a dynamically loaded web page using Playwright in stealth headless mode."""
+def getDynamicBillNumber(url):
+    """Extracts the most recent bill number using Playwright."""
     with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=True,
-            args=["--disable-blink-features=AutomationControlled"]
-        )
+        browser = p.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled"])
         context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
             viewport={"width": 1920, "height": 1080},
-            locale="en-US",
-            java_script_enabled=True
+            locale="en-US"
         )
         page = context.new_page()
         try:
             page.goto(url, timeout=20000)
-            try:
-                page.wait_for_selector("body", timeout=15000)
-            except:
-                print("Main selector did not load — returning -1")
-                return -1
-
-            # Simulate human interaction
+            page.wait_for_selector("body", timeout=15000)
             page.mouse.move(100, 100)
             page.mouse.wheel(0, 1000)
             page.keyboard.press("ArrowDown")
             page.wait_for_timeout(3000)
 
-            # Parse page content
+            # Extract bill number from visible page content
             text = BeautifulSoup(page.content(), 'html.parser').get_text()
-
             if "has not been received" in text:
                 return -1
 
-            # Use regex to find most recent bill number
             match = re.search(r'1\.\s*(S\.|H\.R\.)\s*(\d+)', text)
-            if match:
-                bill_number = match.group(2)
-                print(f"Extracted Bill Number: {bill_number}")
-                return int(bill_number)
-            else:
-                print("No bill number found.")
-                return -1
+            return int(match.group(2)) if match else -1
 
         except Exception as e:
-            print(f"Error fetching dynamic content: {e}")
+            print(f"Error fetching bill number from {url}: {e}")
             return -1
         finally:
             browser.close()
 
-def updateLastFoundAndAppendToCSV(file_path, house_number, senate_number):
-    """Updates last found bill numbers and appends new range to house.csv."""
+def get_max_bill_number_from_db(chamber):
+    """Returns the highest bill number in the database for the given chamber."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
     try:
-        with open(file_path, 'r') as file:
-            lines = file.readlines()
-            last_house = int(lines[0].strip())
-            last_senate = int(lines[1].strip())
-    except FileNotFoundError:
-        last_house, last_senate = 0, 0
-    except Exception as e:
-        print(f"Error reading file: {e}")
-        return
-    
-    if house_number > last_house:
-        with open("csv/house.csv", 'a', newline='') as csvfile:
-            csv_writer = csv.writer(csvfile)
-            for num in range(last_house + 1, house_number + 1):
-                csv_writer.writerow([f'https://www.congress.gov/bill/119th-congress/house-bill/{num}'])
+        cursor.execute("""
+            SELECT MAX(CAST(SUBSTRING_INDEX(url, '-', -1) AS UNSIGNED))
+            FROM url_queue
+            WHERE chamber = %s
+        """, (chamber,))
+        result = cursor.fetchone()[0]
+        return result if result else 0
+    finally:
+        conn.close()
 
-    if senate_number > last_senate:
-        with open("csv/senate.csv", 'a', newline='') as csvfile:
-            csv_writer = csv.writer(csvfile)
-            for num in range(last_senate + 1, senate_number + 1):
-                csv_writer.writerow([f'https://www.congress.gov/bill/119th-congress/senate-bill/{num}'])
-    
-    with open(file_path, 'w', newline='') as file:
-        file.write(f"{house_number}\n{senate_number}\n")
+def insert_new_bills(chamber, last_known, latest_number):
+    """Inserts new bill URLs into the queue based on the difference between latest and known max."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        base_url = f"https://www.congress.gov/bill/119th-congress/{chamber}-bill/"
+        for num in range(last_known + 1, latest_number + 1):
+            url = base_url + str(num)
+            try:
+                cursor.execute("""
+                    INSERT IGNORE INTO url_queue (url, chamber)
+                    VALUES (%s, %s)
+                """, (url, chamber))
+            except Exception as e:
+                print(f"Failed to insert {url}: {e}")
+        conn.commit()
+        print(f"Inserted {latest_number - last_known} new {chamber} bill URLs.")
+    finally:
+        conn.close()
 
 def populateCsv():
-    """Calls the scraper and updates the CSV files."""
+    """Main function to find the latest House and Senate bill numbers and queue missing ones."""
     house_url = "https://www.congress.gov/search?q=%7B%22source%22%3A%22legislation%22%2C%22congress%22%3A119%2C%22chamber%22%3A%22House%22%7D"
     senate_url = "https://www.congress.gov/search?q=%7B%22source%22%3A%22legislation%22%2C%22congress%22%3A119%2C%22chamber%22%3A%22Senate%22%7D"
 
-    house_number = getDynamicUrlText(house_url)
-    senate_number = getDynamicUrlText(senate_url)
+    house_latest = getDynamicBillNumber(house_url)
+    senate_latest = getDynamicBillNumber(senate_url)
 
-    if house_number != -1 and senate_number != -1:
-        updateLastFoundAndAppendToCSV("lastFound.txt", house_number, senate_number)
+    if house_latest != -1:
+        current_max_house = get_max_bill_number_from_db("house")
+        if house_latest > current_max_house:
+            insert_new_bills("house", current_max_house, house_latest)
+
+    if senate_latest != -1:
+        current_max_senate = get_max_bill_number_from_db("senate")
+        if senate_latest > current_max_senate:
+            insert_new_bills("senate", current_max_senate, senate_latest)

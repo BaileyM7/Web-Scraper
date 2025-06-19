@@ -3,45 +3,44 @@ import csv
 import requests
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
+from db_insert import get_db_connection
+import html
 
 arr = []
 invalidArr = []
 
 
-def add_invalid_url(url):
-    cleaned_url = url.strip().rstrip('/').replace("/cosponsors", "").replace("/text", "")
-    if cleaned_url not in invalidArr:
-        invalidArr.append(cleaned_url)
-
-
-def getUrls(input_csv):
-    """Loads URLs from the specified CSV file, normalizes and deduplicates them."""
-    global arr, pdfs, invalidArr
-    seen = set()
-
+def load_pending_urls_from_db(is_senate):
+    conn = get_db_connection()
+    cursor = conn.cursor()
     try:
-        with open(input_csv, 'r', encoding='utf-8') as urls:
-            reader = csv.reader(urls)
-            for row in reader:
-                url = row[0].strip().rstrip('/')
-                if 'congress.gov' in url and not url.endswith('/text'):
-                    url += '/text'
+        cursor.execute("""
+            SELECT id, url FROM url_queue
+            WHERE status = 'pending' AND chamber = %s
+            LIMIT 500
+        """, ('senate' if is_senate else 'house',))
+        return cursor.fetchall()  # returns list of (id, url)
+    finally:
+        conn.close()
 
-                canonical = url.replace('/cosponsors', '').replace('/text', '')
-                if canonical in seen:
-                    continue
-                seen.add(canonical)
+def mark_url_processed(url_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE url_queue SET status = 'processed' WHERE id = %s", (url_id,))
+        conn.commit()
+    finally:
+        conn.close()
 
-                if 'pdf' in url.lower():
-                    pdfs.append(url)
-                else:
-                    arr.append(url)
-    except FileNotFoundError:
-        print("File not found!")
-    except PermissionError:
-        print("You don't have permission to access this file.")
-    except IOError as e:
-        print(f"An I/O error occurred: {e}")
+def mark_url_invalid(url_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE url_queue SET status = 'invalid' WHERE id = %s", (url_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
 
 # now uses api to get it instead of webscraping
 def getDynamicUrlText(url, is_senate):
@@ -54,7 +53,7 @@ def getDynamicUrlText(url, is_senate):
     match = re.search(r'/bill/(\d+)[a-z\-]*/(senate|house)-bill/(\d+)', url)
     if not match:
         # print(f"Unable to parse bill info from URL: {url}")
-        add_invalid_url(url)
+        # add_invalid_url(url)
         return None
 
     _, bill_type_text, bill_number = match.groups()
@@ -69,7 +68,7 @@ def getDynamicUrlText(url, is_senate):
         response.raise_for_status()  # raises HTTPError for 4xx or 5xx
     except requests.exceptions.RequestException as e:
         print(f"[ERROR] Failed to fetch bill text for {url}: {e}")
-        add_invalid_url(url)
+        # add_invalid_url(url)
         return None
 
     if response.status_code == 200:
@@ -99,11 +98,14 @@ def getDynamicUrlText(url, is_senate):
         
     response = requests.get(govinfo_url)
     if response.status_code == 200:
-        # print(f"Found bill text on govinfo.gov: {govinfo_url}")
+
+        if "Page Not Found" in response.text or "Error occurred" in response.text:
+            return None
+        
         return response.text
     else:
         # print("Bill text not yet published on govinfo.gov.")
-        add_invalid_url(url)
+        # add_invalid_url(url)
         return None
 
 def get_primary_sponsor(is_senate, congress_num, bill_number):
@@ -159,3 +161,22 @@ def get_primary_sponsor(is_senate, congress_num, bill_number):
     return sponsor_str, last_name
 
 
+def extract_sponsor_phrase(html_string):
+    decoded = html.unescape(html_string)
+
+    # Extract <pre> ... </pre>
+    pre_match = re.search(r"<pre>(.*?)</pre>", decoded, re.DOTALL)
+    if not pre_match:
+        return None
+    pre_text = pre_match.group(1)
+
+    # Match up to the word 'introduced' — no whitespace requirement
+    match = re.search(
+        r"((?:Mr\.|Mrs\.|Ms\.|Dr\.)\s+.*?)(?=introduced)",
+        pre_text,
+        re.DOTALL
+    )
+
+    if match:
+        return ' '.join(match.group(1).split())  # normalize whitespace
+    return None

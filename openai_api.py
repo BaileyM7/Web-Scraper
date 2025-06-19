@@ -4,7 +4,7 @@ from openai import OpenAI
 from urllib.parse import urlparse
 import platform
 from cleanup_text import cleanup_text
-from url_processing import add_invalid_url, get_primary_sponsor
+from url_processing import get_primary_sponsor
 import requests
 
 global found_ids
@@ -154,7 +154,7 @@ def callApiWithText(text, client, url, is_senate, filename_only=False):
     file_date = get_date_from_text(text, True)
 
     if file_date is None:
-        add_invalid_url(url)
+        # add_invalid_url(url)
         return "NA", None, None
     
     filename = f"$H billintros-{file_date}-s{bill_number}" if is_senate else f"$H billintroh-{file_date}-hr{bill_number}"
@@ -165,11 +165,11 @@ def callApiWithText(text, client, url, is_senate, filename_only=False):
     fullname, last_name = get_primary_sponsor(is_senate, 119, bill_number)
 
     if fullname == "STOP":
-        add_invalid_url(url)
+        # add_invalid_url(url)
         return "STOP", None, None
     
     if fullname == "" or last_name == "":
-        add_invalid_url(url)
+        # add_invalid_url(url)
         return "NA", None, None
 
     prompt = f"""
@@ -213,7 +213,7 @@ def callApiWithText(text, client, url, is_senate, filename_only=False):
         parts = result.split('\n', 1)
 
         if len(parts) != 2:
-            add_invalid_url(url)
+            # add_invalid_url(url)
             print(f"Headline Wasnt Parsed Right")
             return "NA", None, None 
 

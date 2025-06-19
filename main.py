@@ -6,7 +6,7 @@ import logging
 import time
 from datetime import datetime
 
-from url_processing import getUrls, getDynamicUrlText, arr, invalidArr, add_invalid_url
+from url_processing import getDynamicUrlText, load_pending_urls_from_db, mark_url_processed, extract_sponsor_phrase
 from openai_api import getKey, callApiWithText, OpenAI
 from db_insert import get_db_connection
 from scripts.populateCsv import populateCsv
@@ -29,7 +29,7 @@ console.setFormatter(formatter)
 logging.getLogger("").addHandler(console)
 
 # --- Insert Story Function ---
-def insert_story(filename, headline, body, a_id):
+def insert_story(filename, headline, body, a_id, sponsor_blob):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -46,8 +46,8 @@ def insert_story(filename, headline, body, a_id):
         INSERT INTO story
         (filename, uname, source, by_line, headline, story_txt, editor, invoice_tag,
          date_sent, sent_to, wire_to, nexis_sent, factiva_sent,
-         status, content_date, last_action)
-        VALUES (%s, %s, %s, %s, %s, %s, '', '', NOW(), '', '', NULL, NULL, %s, %s, SYSDATE())
+         status, content_date, last_action, orig_txt)
+        VALUES (%s, %s, %s, %s, %s, %s, '', '', NOW(), '', '', NULL, NULL, %s, %s, SYSDATE(), %s)
         """
         today_str = datetime.now().strftime('%Y-%m-%d')
         cursor.execute(insert_sql, (
@@ -58,7 +58,8 @@ def insert_story(filename, headline, body, a_id):
             headline,
             body,
             'D',
-            today_str
+            today_str,
+            sponsor_blob
         ))
 
         # Get story ID s_id
@@ -96,7 +97,7 @@ def load_sources_sql(filepath="sources.dmp.sql"):
                     try:
                         cursor.execute(statement)
                     except Exception as e:
-                        logging.warning(f"Skipped SQL chunk due to error: {e}\n{statement.strip()}")
+                        logging.warning(f"skipped SQL chunk due to error: {e}\n{statement.strip()}")
                     statement = ""
         conn.commit()
         logging.info("Loaded sources.dmp.sql successfully")
@@ -107,33 +108,10 @@ def load_sources_sql(filepath="sources.dmp.sql"):
         if conn:
             conn.close()
 
-# adding back all of the urls that werent scrapped
-def add_urls_to_csv(invalidArr, is_senate):
-    total = 0
-    if is_senate:
-        with open("csv/senate.csv", "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            for url in invalidArr:
-                writer.writerow([url])
-                total += 1
-    else:
-        with open("csv/house.csv", "w", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                for url in invalidArr:
-                    writer.writerow([url])
-                    total += 1
-
-    #  putting logging info
-    if is_senate:
-        logging.info(f"Wrote {total} URLs back to senate.csv to be evaluated tommorow")   
-    else:
-        logging.info(f"Wrote {total} URLs back to house.csv to be evaluated tommorow")
-
-
 # --- Main Processing ---
 def main(argv):
     start_time = datetime.now()
-    processed, skipped, total_urls = 0, 0, 0
+    processed, skipped, total_urls, passed = 0, 0, 0, 0
     populate_first = False
     is_senate = None
     a_id = 0
@@ -162,13 +140,12 @@ def main(argv):
     if populate_first:
         populateCsv()
 
-    input_csv = "csv/senate.csv" if is_senate else "csv/house.csv"
-    getUrls(input_csv)
+    url_rows = load_pending_urls_from_db(is_senate)  
 
     client = OpenAI(api_key=getKey())
     seen = set()
 
-    for url in arr:
+    for url_id, url in url_rows:
         canonical = url.strip().rstrip('/')
         if canonical in seen:
             continue
@@ -179,8 +156,11 @@ def main(argv):
             url += '/text'
 
         content = getDynamicUrlText(url, is_senate)
+
         if not content:
             continue
+
+        bill_sponsor_blob = extract_sponsor_phrase(content)
 
         filename_preview, _, _ = callApiWithText(
             text=content,
@@ -192,7 +172,7 @@ def main(argv):
 
         if not filename_preview:
             logging.warning(f"Filename preview failed for {url}")
-            skipped += 1
+            passed += 1
             continue
         
         conn = get_db_connection()
@@ -201,7 +181,8 @@ def main(argv):
         if cursor.fetchone()[0] > 0:
             logging.info(f"Skipping duplicate before GPT call: {filename_preview}")
             skipped += 1
-            # add_invalid_url(url)
+            # marking it as processed so that it isnt processed again
+            mark_url_processed(url_id)
             conn.close()
             continue
         conn.close()
@@ -222,31 +203,29 @@ def main(argv):
         
         if filename == "NA" or not headline or not press_release:
             logging.warning(f"Skipped due to text not being available through api {url}")
-            skipped += 1
+            passed += 1
             continue
 
         if filename and headline and press_release:
             full_text = press_release + f"\n\n* * # * *\n\nPrimary source of information: {url}"
-            success = insert_story(filename, headline, full_text, a_id)
+            success = insert_story(filename, headline, full_text, a_id, bill_sponsor_blob)
             if success:
+                mark_url_processed(url_id)
                 processed += 1
             else:
-                skipped += 1
-        
-    #  rewriting the urls to the csv
-    if not stopped:
-        add_urls_to_csv(invalidArr, is_senate)
+                passed += 1
 
     end_time = datetime.now()
     elapsed = str(end_time - start_time).split('.')[0]
     summary = f"""
-Load Version 2.2.1 06/18/2025
+Load Version 3.0.0 06/18/2025
 
 Passed Parameters: {' -P' if populate_first else ''} {' -S' if is_senate else ' -H'}
 Pull House and Senate: {'Senate' if is_senate else 'House'}
 
 Docs Loaded: {processed}
-URLS held for re-evaluation: {skipped}
+URLS skipped due to duplication: {skipped}
+URLS held for re-evaluation: {passed}
 Total URLS looked at: {total_urls}
 
 Stopped Due to Rate Limit: {stopped}

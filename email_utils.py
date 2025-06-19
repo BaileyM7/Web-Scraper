@@ -25,9 +25,6 @@ def send_summary_email(msg_txt, is_senate, to_addrs=None, from_addr="kmeek@targe
             logging.error(f"Invalid email address: {email}")
             return
 
-    # Set attachment path based on is_senate
-    attachment_path = "csv/senate.csv" if is_senate else "csv/house.csv"
-
     context = ssl.create_default_context()
     try:
         server = smtplib.SMTP(smtp_server, port)
@@ -39,16 +36,6 @@ def send_summary_email(msg_txt, is_senate, to_addrs=None, from_addr="kmeek@targe
         msg["To"] = ", ".join(to_addrs)
         msg["Subject"] = subject
         msg.attach(MIMEText(msg_txt, "plain"))
-
-        # Attach the corresponding CSV file
-        if os.path.isfile(attachment_path):
-            with open(attachment_path, "rb") as f:
-                part = MIMEApplication(f.read(), _subtype="csv")
-                part.add_header("Content-Disposition", "attachment", filename=os.path.basename(attachment_path))
-                msg.attach(part)
-        else:
-            logging.error(f"Attachment file not found: {attachment_path}")
-            return
 
         server.sendmail(from_addr, to_addrs, msg.as_string())
     except Exception as e:
