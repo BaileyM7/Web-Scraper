@@ -111,7 +111,7 @@ def get_date_from_text(text, is_file):
                 return dt.strftime("%y%m%d")
             else:
                 # Return as MM/DD/YYYY
-                return dt.strftime("%m/%d/%Y")
+                return f"{dt.month}/{dt.day}/{dt.year}"
         except ValueError:
             return None
     return None
