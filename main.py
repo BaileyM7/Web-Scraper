@@ -6,7 +6,7 @@ import logging
 import time
 from datetime import datetime
 
-from url_processing import getDynamicUrlText, load_pending_urls_from_db, mark_url_processed, extract_sponsor_phrase
+from url_processing import getDynamicUrlText, load_pending_urls_from_db, mark_url_processed, extract_sponsor_phrase, link_story_to_url, add_note_to_url
 from openai_api import getKey, callApiWithText, OpenAI
 from db_insert import get_db_connection
 from scripts.populateCsv import populateCsv
@@ -73,10 +73,10 @@ def insert_story(filename, headline, body, a_id, sponsor_blob):
 
         conn.commit()
         logging.info(f"Inserted story and {len(openai_api.found_ids)} tag(s): {filename}")
-        return True
+        return s_id
     except Exception as err:
         logging.error(f"DB insert failed: {err}")
-        return False
+        return None
     finally:
         if conn:
             conn.close()
@@ -158,6 +158,8 @@ def main(argv):
         content = getDynamicUrlText(url, is_senate)
 
         if not content:
+            add_note_to_url(url_id, "No content extracted: broken link")
+            passed += 1
             continue
 
         bill_sponsor_blob = extract_sponsor_phrase(content)
@@ -172,6 +174,7 @@ def main(argv):
 
         if not filename_preview:
             logging.warning(f"Filename preview failed for {url}")
+            add_note_to_url(url_id, "Filename preview failed")
             passed += 1
             continue
         
@@ -180,6 +183,7 @@ def main(argv):
         cursor.execute("SELECT COUNT(*) FROM story WHERE filename = %s", (filename_preview,))
         if cursor.fetchone()[0] > 0:
             logging.info(f"Skipping duplicate before GPT call: {filename_preview}")
+            add_note_to_url(url_id, "Duplicate filename in story table")
             skipped += 1
             # marking it as processed so that it isnt processed again
             mark_url_processed(url_id)
@@ -203,22 +207,25 @@ def main(argv):
         
         if filename == "NA" or not headline or not press_release:
             logging.warning(f"Skipped due to text not being available through api {url}")
+            add_note_to_url(url_id, "text not available through api")
             passed += 1
             continue
 
         if filename and headline and press_release:
             full_text = press_release + f"\n\n* * # * *\n\nPrimary source of information: {url}"
-            success = insert_story(filename, headline, full_text, a_id, bill_sponsor_blob)
-            if success:
+            s_id = insert_story(filename, headline, full_text, a_id, bill_sponsor_blob)
+            if s_id:
                 mark_url_processed(url_id)
+                link_story_to_url(url_id, s_id)
                 processed += 1
             else:
+                add_note_to_url(url_id, "Story insert failed (possibly DB error)")
                 passed += 1
 
     end_time = datetime.now()
     elapsed = str(end_time - start_time).split('.')[0]
     summary = f"""
-Load Version 3.0.0 06/18/2025
+Load Version 3.0.0 06/19/2025
 
 Passed Parameters: {' -P' if populate_first else ''} {' -S' if is_senate else ' -H'}
 Pull House and Senate: {'Senate' if is_senate else 'House'}

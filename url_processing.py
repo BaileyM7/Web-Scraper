@@ -17,7 +17,7 @@ def load_pending_urls_from_db(is_senate):
         cursor.execute("""
             SELECT id, url FROM url_queue
             WHERE status = 'pending' AND chamber = %s
-            LIMIT 500
+            LIMIT 2000
         """, ('senate' if is_senate else 'house',))
         return cursor.fetchall()  # returns list of (id, url)
     finally:
@@ -180,3 +180,23 @@ def extract_sponsor_phrase(html_string):
     if match:
         return ' '.join(match.group(1).split())  # normalize whitespace
     return None
+
+# method adds story id from inserted story into url queue
+def link_story_to_url(url_id, s_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE url_queue SET story_id = %s WHERE id = %s", (s_id, url_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+# adds note to url in url queue
+def add_note_to_url(url_id, message):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE url_queue SET notes = %s WHERE id = %s", (message, url_id))
+        conn.commit()
+    finally:
+        conn.close()
