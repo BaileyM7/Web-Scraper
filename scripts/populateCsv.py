@@ -41,7 +41,7 @@ def get_max_bill_number_from_db(chamber):
     cursor = conn.cursor()
     try:
         cursor.execute("""
-            SELECT MAX(CAST(SUBSTRING_INDEX(url, '-', -1) AS UNSIGNED))
+            SELECT MAX(CAST(REGEXP_SUBSTR(url, '[0-9]+$') AS UNSIGNED))
             FROM url_queue
             WHERE chamber = %s
         """, (chamber,))
