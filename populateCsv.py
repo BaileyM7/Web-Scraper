@@ -2,6 +2,7 @@ import re
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 from db_insert import get_db_connection
+import logging
 
 def getDynamicBillNumber(url):
     """Extracts the most recent bill number using Playwright."""
@@ -24,13 +25,15 @@ def getDynamicBillNumber(url):
             # Extract bill number from visible page content
             text = BeautifulSoup(page.content(), 'html.parser').get_text()
             if "has not been received" in text:
+                logging.debug(f"text not found on: {url}")
                 return -1
 
             match = re.search(r'1\.\s*(S\.|H\.R\.)\s*(\d+)', text)
+            logging.debug(f"MOST RECENT NUMBER FOUND: {int(match.group(2))}")
             return int(match.group(2)) if match else -1
 
         except Exception as e:
-            print(f"Error fetching bill number from {url}: {e}")
+            logging.debug(f"Error fetching bill number from {url}: {e}")
             return -1
         finally:
             browser.close()
@@ -46,7 +49,7 @@ def get_max_bill_number_from_db(chamber):
             WHERE chamber = %s
         """, (chamber,))
         result = cursor.fetchone()[0]
-        print(f"{chamber}: MAX BILL NUM => {result}")
+        logging.debug(f"{chamber}: MAX CURRENT BILL NUM => {result}")
 
         return result if result else 0
     finally:
@@ -61,15 +64,17 @@ def insert_new_bills(chamber, last_known, latest_number):
         for num in range(last_known + 1, latest_number + 1):
             url = base_url + str(num)
             try:
-                print(f"TRYING TO INSERT new {chamber} bill: {num}")
+                logging.debug(f"TRYING TO INSERT new {chamber} bill: {num}")
                 cursor.execute("""
                     INSERT INTO url_queue (url, chamber, status)
                     VALUES (%s, %s, 'pending')
                 """, (url, chamber))
+
+                logging.debug(f"Insert success: {url}")
             except Exception as e:
-                print(f"Failed to insert {url}: {e}")
+                logging.debug(f"Failed to insert {url}: {e}")
         conn.commit()
-        print(f"Inserted {latest_number - last_known} new {chamber} bill URLs.")
+        logging.debug(f"Inserted {latest_number - last_known} new {chamber} bill URLs.")
     finally:
         conn.close()
 
