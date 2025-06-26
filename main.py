@@ -9,7 +9,7 @@ from datetime import datetime
 from url_processing import getDynamicUrlText, load_pending_urls_from_db, mark_url_processed, extract_sponsor_phrase, link_story_to_url, add_note_to_url
 from openai_api import getKey, callApiWithText, OpenAI
 from db_insert import get_db_connection
-from scripts.populateCsv import populateCsv
+from populateCsv import populateCsv
 from email_utils import send_summary_email
 import openai_api
 
