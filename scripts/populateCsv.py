@@ -46,6 +46,8 @@ def get_max_bill_number_from_db(chamber):
             WHERE chamber = %s
         """, (chamber,))
         result = cursor.fetchone()[0]
+        print(f"{chamber}: MAX BILL NUM => {result}")
+
         return result if result else 0
     finally:
         conn.close()
@@ -59,6 +61,7 @@ def insert_new_bills(chamber, last_known, latest_number):
         for num in range(last_known + 1, latest_number + 1):
             url = base_url + str(num)
             try:
+                print(f"TRYING TO INSERT new {chamber} bill: {num}")
                 cursor.execute("""
                     INSERT IGNORE INTO url_queue (url, chamber, status)
                     VALUES (%s, %s, 'pending')
