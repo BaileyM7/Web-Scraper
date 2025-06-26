@@ -63,7 +63,7 @@ def insert_new_bills(chamber, last_known, latest_number):
             try:
                 print(f"TRYING TO INSERT new {chamber} bill: {num}")
                 cursor.execute("""
-                    INSERT IGNORE INTO url_queue (url, chamber, status)
+                    INSERT INTO url_queue (url, chamber, status)
                     VALUES (%s, %s, 'pending')
                 """, (url, chamber))
             except Exception as e:
