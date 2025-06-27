@@ -15,7 +15,7 @@ def send_summary_email(msg_txt, is_senate, to_addrs=None, from_addr="kmeek@targe
     subject += 'Senate' if is_senate else 'House'
 
     if to_addrs is None:
-        to_addrs = ["kmeek@targetednews.com", "bmalota08@gmail.com", "marlynvitin@yahoo.com", "struckvail@aol.com"]
+        to_addrs = ["kmeek@targetednews.com", "bmalota08@gmail.com", "marlynvitin@yahoo.com", "struckvail@aol.com", "malota.rc1@verizon.net"]
     elif isinstance(to_addrs, str):
         to_addrs = [to_addrs]
 
