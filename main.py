@@ -225,7 +225,7 @@ def main(argv):
     end_time = datetime.now()
     elapsed = str(end_time - start_time).split('.')[0]
     summary = f"""
-Load Version 3.1.2 06/25/2025
+Load Version 3.1.3 06/29/2025
 
 Passed Parameters: {' -P' if populate_first else ''} {' -S' if is_senate else ' -H'}
 Pull House and Senate: {'Senate' if is_senate else 'House'}
@@ -242,7 +242,8 @@ End Time: {end_time.strftime('%Y-%m-%d %H:%M:%S')}
 Elapsed Time: {elapsed}
 """
     logging.info(summary)
-    send_summary_email(summary, is_senate)
+    logging.shutdown()
+    send_summary_email(summary, is_senate, logfile)
     
 if __name__ == "__main__":
     main(sys.argv[1:])
