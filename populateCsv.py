@@ -4,37 +4,66 @@ from playwright.sync_api import sync_playwright
 from db_insert import get_db_connection
 import logging
 
-def getDynamicBillNumber(url):
-    """Extracts the most recent bill number using Playwright."""
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=["--disable-blink-features=AutomationControlled"])
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-            viewport={"width": 1920, "height": 1080},
-            locale="en-US"
-        )
-        page = context.new_page()
-        try:
-            page.goto(url, timeout=20000)
-            page.wait_for_selector("body", timeout=15000)
-            page.mouse.move(100, 100)
-            page.mouse.wheel(0, 1000)
-            page.keyboard.press("ArrowDown")
-            page.wait_for_timeout(3000)
+import re
+from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
+import logging
 
-            # Extract bill number from visible page content
+def getDynamicBillNumber(url):
+    """Extracts the most recent bill number using Playwright in headless mode."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            headless=True,  # Must be headless for production
+            args=["--disable-blink-features=AutomationControlled"]
+        )
+
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            viewport={"width": 1920, "height": 1080},
+            locale="en-US",
+            java_script_enabled=True
+        )
+
+        page = context.new_page()
+
+        try:
+            # Load page and wait for it to settle
+            page.goto(url, timeout=20000)
+            page.wait_for_load_state("networkidle", timeout=20000)
+
+            # Extra scrolls to trigger lazy loading (if needed)
+            for _ in range(3):
+                page.mouse.wheel(0, 1000)
+                page.wait_for_timeout(1000)
+                page.keyboard.press("ArrowDown")
+
+            # Wait for full body to appear
+            try:
+                page.wait_for_selector("body", timeout=25000)
+            except:
+                logging.debug(f"Main selector not loaded — skipping: {url}")
+                return -1
+
+            # Parse text and search for the bill number
             text = BeautifulSoup(page.content(), 'html.parser').get_text()
+
             if "has not been received" in text:
-                logging.debug(f"text not found on: {url}")
+                logging.debug(f"Bill not received yet: {url}")
                 return -1
 
             match = re.search(r'1\.\s*(S\.|H\.R\.)\s*(\d+)', text)
-            logging.debug(f"MOST RECENT NUMBER FOUND: {int(match.group(2))}")
-            return int(match.group(2)) if match else -1
+            if match:
+                bill_number = int(match.group(2))
+                logging.debug(f"MOST RECENT NUMBER FOUND: {bill_number}")
+                return bill_number
+            else:
+                logging.debug(f"No bill number match found in: {url}")
+                return -1
 
         except Exception as e:
             logging.debug(f"Error fetching bill number from {url}: {e}")
             return -1
+
         finally:
             browser.close()
 
