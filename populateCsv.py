@@ -4,11 +4,6 @@ from playwright.sync_api import sync_playwright
 from db_insert import get_db_connection
 import logging
 
-import re
-from bs4 import BeautifulSoup
-from playwright.sync_api import sync_playwright
-import logging
-
 def getDynamicBillNumber(url):
     """Extracts the most recent bill number using Playwright in headless mode."""
     with sync_playwright() as p:
