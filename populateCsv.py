@@ -5,10 +5,10 @@ from db_insert import get_db_connection
 import logging
 
 def getDynamicBillNumber(url):
-    """Extracts the most recent bill number using Playwright in headless mode."""
+    """Extracts the most recent bill number from a Congress.gov search page using Playwright."""
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            headless=True,  # Must be headless for production
+            headless=True,
             args=["--disable-blink-features=AutomationControlled"]
         )
 
@@ -22,37 +22,34 @@ def getDynamicBillNumber(url):
         page = context.new_page()
 
         try:
-            # Load page and wait for it to settle
             page.goto(url, timeout=20000)
             page.wait_for_load_state("networkidle", timeout=20000)
 
-            # Extra scrolls to trigger lazy loading (if needed)
+            # Scroll to ensure lazy content loads
             for _ in range(3):
                 page.mouse.wheel(0, 1000)
                 page.wait_for_timeout(1000)
                 page.keyboard.press("ArrowDown")
 
-            # Wait for full body to appear
+            # Wait for the first bill link to appear
+            selector = "#main > ol > li:nth-child(1) > span.result-heading > a"
             try:
-                page.wait_for_selector("body", timeout=25000)
+                page.wait_for_selector(selector, timeout=35000)
             except:
-                logging.debug(f"Main selector not loaded — skipping: {url}")
+                logging.debug(f"Bill result not found: {url}")
                 return -1
 
-            # Parse text and search for the bill number
-            text = BeautifulSoup(page.content(), 'html.parser').get_text()
+            # Extract and parse bill number from the result
+            bill_text = page.locator(selector).inner_text()
+            logging.debug(f"Raw bill text: {bill_text}")
 
-            if "has not been received" in text:
-                logging.debug(f"Bill not received yet: {url}")
-                return -1
-
-            match = re.search(r'1\.\s*(S\.|H\.R\.)\s*(\d+)', text)
+            match = re.search(r'(S\.|H\.R\.)\s*(\d+)', bill_text)
             if match:
                 bill_number = int(match.group(2))
                 logging.debug(f"MOST RECENT NUMBER FOUND: {bill_number}")
                 return bill_number
             else:
-                logging.debug(f"No bill number match found in: {url}")
+                logging.debug(f"No bill number match in: {url} (text was: '{bill_text}')")
                 return -1
 
         except Exception as e:
