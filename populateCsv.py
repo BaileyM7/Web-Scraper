@@ -3,7 +3,9 @@ from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 from db_insert import get_db_connection
 import logging
+from url_processing import get_most_recent_bill_number
 
+'''
 def getDynamicBillNumber(url):
     """Extracts the most recent bill number from a Congress.gov search page using Playwright."""
     with sync_playwright() as p:
@@ -58,6 +60,7 @@ def getDynamicBillNumber(url):
 
         finally:
             browser.close()
+'''
 
 def get_max_bill_number_from_db(chamber):
     """Returns the highest bill number in the database for the given chamber."""
@@ -101,12 +104,10 @@ def insert_new_bills(chamber, last_known, latest_number):
 
 def populateCsv():
     """Main function to find the latest House and Senate bill numbers and queue missing ones."""
-    house_url = "https://www.congress.gov/search?q=%7B%22source%22%3A%22legislation%22%2C%22congress%22%3A119%2C%22chamber%22%3A%22House%22%7D"
-    senate_url = "https://www.congress.gov/search?q=%7B%22source%22%3A%22legislation%22%2C%22congress%22%3A119%2C%22chamber%22%3A%22Senate%22%7D"
 
-    house_latest = getDynamicBillNumber(house_url)
-    senate_latest = getDynamicBillNumber(senate_url)
-
+    house_latest = get_most_recent_bill_number(False)
+    senate_latest = get_most_recent_bill_number(True)
+    
     if house_latest != -1:
         current_max_house = get_max_bill_number_from_db("house")
         if house_latest > current_max_house:

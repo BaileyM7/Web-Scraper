@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 from db_insert import get_db_connection
 import html
+import logging
 
 arr = []
 invalidArr = []
@@ -52,7 +53,7 @@ def getDynamicUrlText(url, is_senate):
 
     match = re.search(r'/bill/(\d+)[a-z\-]*/(senate|house)-bill/(\d+)', url)
     if not match:
-        # print(f"Unable to parse bill info from URL: {url}")
+        # logging.info(f"Unable to parse bill info from URL: {url}")
         # add_invalid_url(url)
         return None
 
@@ -60,14 +61,14 @@ def getDynamicUrlText(url, is_senate):
     bill_type = "s" if is_senate else "hr"
 
     api_url = f"https://api.congress.gov/v3/bill/{congress}/{bill_type}/{bill_number}/text"
-    # print(api_url)
+    # logging.info(api_url)
     headers = {"X-API-Key": api_key}
 
     try:
         response = requests.get(api_url, headers=headers)
         response.raise_for_status()  # raises HTTPError for 4xx or 5xx
     except requests.exceptions.RequestException as e:
-        print(f"[ERROR] Failed to fetch bill text for {url}: {e}")
+        logging.info(f"[ERROR] Failed to fetch bill text for {url}: {e}")
         # add_invalid_url(url)
         return None
 
@@ -83,13 +84,13 @@ def getDynamicUrlText(url, is_senate):
                         text = html_response.text.replace("<html><body><pre>", "").strip()
                         return text
         #             else:
-        #                 print(f"Failed to fetch HTML content: {html_response.status_code}")
-        # print("HTML version not found in formats.")
+        #                 logging.info(f"Failed to fetch HTML content: {html_response.status_code}")
+        # logging.info("HTML version not found in formats.")
     # else:
-    #     print(f"Congress API failed: {response.status_code}")
+    #     logging.info(f"Congress API failed: {response.status_code}")
 
     # Fallback: govinfo.gov
-    #print("Trying govinfo.gov...")
+    #logging.info("Trying govinfo.gov...")
     if is_senate:
         govinfo_url = f"https://www.govinfo.gov/content/pkg/BILLS-{congress}{bill_type}{bill_number}is/html/BILLS-{congress}{bill_type}{bill_number}is.htm"
     else:
@@ -104,7 +105,7 @@ def getDynamicUrlText(url, is_senate):
         
         return response.text
     else:
-        # print("Bill text not yet published on govinfo.gov.")
+        # logging.info("Bill text not yet published on govinfo.gov.")
         # add_invalid_url(url)
         return None
 
@@ -141,19 +142,19 @@ def get_primary_sponsor(is_senate, congress_num, bill_number):
     except requests.exceptions.HTTPError as e:
         status = response.status_code
         if status == 502:
-            print(f"502 Bad Gateway for URL: {url}")
+            logging.info(f"502 Bad Gateway for URL: {url}")
             return "", ""
         elif status == 429:
-            print(f"429 Too Many Requests for URL: {url}")
+            logging.info(f"429 Too Many Requests for URL: {url}")
             return "STOP", ""
         else:
-            print(f"HTTP error {status} for URL: {url}")
+            logging.info(f"HTTP error {status} for URL: {url}")
             return "", ""
     
     sponsor_str = ""
 
     if not sponsor:
-        print(f"No sponsors found for {url}")
+        logging.info(f"No sponsors found for {url}")
         return "", ""
 
     sponsor_str += f"{sponsor_name}, {sponsor[0]['party']}-{sponsor[0]['state']},"
@@ -200,3 +201,41 @@ def add_note_to_url(url_id, message):
         conn.commit()
     finally:
         conn.close()
+
+def get_most_recent_bill_number(is_senate, congress=119):
+    """
+    Returns the highest-introduced bill number for the given chamber and congress session.
+    """
+    try:
+        with open("utils/govkey.txt") as f:
+            api_key = f.read().strip()
+
+        bill_type = "s" if is_senate else "hr"
+        url = f"https://api.congress.gov/v3/bill/{congress}/{bill_type}"
+        params = {
+            "api_key": api_key,
+            "limit": 250  # max allowed
+        }
+
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        bills = response.json().get("bills", [])
+
+        max_number = -1
+        for bill in bills:
+            number_str = bill.get("number")
+            if number_str and number_str.isdigit():
+                number_int = int(number_str)
+                if number_int > max_number:
+                    max_number = number_int
+
+        logging.info(f"Most recent bill number found on bill website: {max_number}")
+
+        return max_number
+
+    except requests.exceptions.HTTPError as e:
+        logging.error(f"HTTP error: {e}")
+        return -1
+    except Exception as e:
+        logging.error(f"Error: {e}")
+        return -1
