@@ -289,8 +289,16 @@ def generate_cosponsor_summary(url, text, is_senate, bill_num):
             print(f"HTTP error {status} for URL: {url}")
             return -1
 
+    # Adding Reps or Sens
+    honorific = ""
+
+    if num_cosponsors == 1:
+        honorific = "Sen" if is_senate else "Rep"
+    else:
+        honorific = "Sens" if is_senate else "Reps"
+
     # creating and formatting the total paragram
-    cosponsors_str = f"The bill ({label}{bill_num}) introduced on {intro_date} has {num_cosponsors} co-sponsors: "
+    cosponsors_str = f"The bill ({label}{bill_num}) introduced on {intro_date} has {num_cosponsors} co-sponsors: {honorific} "
     count = 0
 
     if num_cosponsors == 0:
@@ -299,7 +307,7 @@ def generate_cosponsor_summary(url, text, is_senate, bill_num):
     
     if num_cosponsors == 1:
 
-        cosponsors_str = f"The bill ({label}{bill_num}) introduced on {intro_date} has {num_cosponsors} co-sponsor: "
+        cosponsors_str = f"The bill ({label}{bill_num}) introduced on {intro_date} has {num_cosponsors} co-sponsor: {honorific} "
 
         try: 
             curr_cosponsor = requests.get(urls[0], parameters)
