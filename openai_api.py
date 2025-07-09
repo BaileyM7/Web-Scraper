@@ -293,9 +293,9 @@ def generate_cosponsor_summary(url, text, is_senate, bill_num):
     honorific = ""
 
     if num_cosponsors == 1:
-        honorific = "Sen" if is_senate else "Rep"
+        honorific = "Sen." if is_senate else "Rep."
     else:
-        honorific = "Sens" if is_senate else "Reps"
+        honorific = "Sens." if is_senate else "Reps."
 
     # creating and formatting the total paragram
     cosponsors_str = f"The bill ({label}{bill_num}) introduced on {intro_date} has {num_cosponsors} co-sponsors: {honorific} "
