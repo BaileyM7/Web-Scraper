@@ -52,7 +52,7 @@ def insert_story(filename, headline, body, a_id, sponsor_blob):
         today_str = datetime.now().strftime('%Y-%m-%d')
         cursor.execute(insert_sql, (
             filename,
-            "T55-Bailey-Proj",
+            "T70-Bailey-Bill",
             a_id,
             "Bailey Malota",
             headline,
@@ -225,7 +225,7 @@ def main(argv):
     end_time = datetime.now()
     elapsed = str(end_time - start_time).split('.')[0]
     summary = f"""
-Load Version 3.1.8 07/09/2025
+Load Version 3.1.9 07/10/2025
 
 Passed Parameters: {' -P' if populate_first else ''} {' -S' if is_senate else ' -H'}
 Pull House and Senate: {'Senate' if is_senate else 'House'}
