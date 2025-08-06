@@ -225,7 +225,7 @@ def main(argv):
     end_time = datetime.now()
     elapsed = str(end_time - start_time).split('.')[0]
     summary = f"""
-Load Version 3.1.9 07/10/2025
+Load Version 3.1.9 08/05/2025
 
 Passed Parameters: {' -P' if populate_first else ''} {' -S' if is_senate else ' -H'}
 Pull House and Senate: {'Senate' if is_senate else 'House'}

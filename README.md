@@ -1,121 +1,122 @@
-# Bill Processing System 1.04
+# Bill Processing System
 
-A system for automatically fetching, processing, and generating press releases from legislative bills from congress.gov and related sources.
+A Python-based automation pipeline for fetching, processing, and generating press releases from U.S. congressional bills. This system scrapes legislative content from Congress.gov, uses OpenAI's API to summarize and reformat it into media-ready releases, stores the results in a database, and sends email summaries.
 
-## Overview
+---
 
-This system automatically:
-1. Scrapes bill text from congressional websites
-2. Processes the content using AI to generate press releases
-3. Stores results in a database
-4. Sends summary emails on completion
+## 🔧 Features
 
-## Dependencies
+* 🔍 **Dynamic Bill Scraping**
+  Scrapes text and summaries from official congressional sources.
 
-### Python Libraries
-- `sys` - Standard library for system-specific parameters and functions
-- `getopt` - Standard library for command line option parsing
-- `csv` - Standard library for CSV file operations
-- `logging` - Standard library for logging functionality
-- `time` - Standard library for time-related functions
-- `datetime` - Standard library for date and time manipulation
+* 🧠 **AI Content Generation**
+  Uses OpenAI's GPT models to turn legislative language into clear press releases.
 
-### Custom Modules
-- `url_processing` - Contains functions for URL handling and content extraction
-- `openai_api` - OpenAI integration for text processing
-- `db_insert` - Database connection and operations
-- `scripts.populateCsv` - CSV population utilities
-- `email_utils` - Email sending functionality
+* 💃 **Database Integration**
+  Stores processed data in a MySQL database, complete with logging and duplication checks.
 
-### External Services
-- OpenAI API - Used for text processing and generating press releases
-- Database server - For storing processed content
+* 📩 **Email Notifications**
+  Sends automated summaries of processed bills to stakeholders.
 
-## Installation
+* 📁 **Flexible Input**
+  Reads from structured CSV files (`senate.csv`, `house.csv`) and supports population from dynamic sources.
 
-1. Clone this repository
-2. Install the required Python packages
-3. Set up your database configuration (see Configuration section)
-4. Ensure you have an OpenAI API key properly configured
+---
 
-## Configuration
+## 📦 Dependencies
 
-Before running the script, make sure you have:
+### 🐍 Python Standard Libraries
 
-1. A database set up and properly configured for connection
-2. OpenAI API key accessible to the system
-3. The `sources.dmp.sql` file in the root directory
-4. CSV files in the `csv/` directory:
-   - `senate.csv`
-   - `house.csv`
+* `sys`, `getopt`, `csv`, `logging`, `time`, `datetime`
 
-## Usage
+### 📁 Custom Modules
 
-Run the script with the following command line options:
+* `url_processing.py` – Parses and fetches bill content
+* `openai_api.py` – Handles GPT calls
+* `db_insert.py` – Manages DB insertion logic
+* `scripts/populateCsv.py` – CSV data population
+* `email_utils.py` – Summary email support
 
-```
-python process_bills.py [OPTIONS]
+### 🌐 External Services
+
+* **OpenAI API** – For text summarization and press release generation
+* **MySQL Database** – For persistent storage of processed outputs
+
+---
+
+## ⚙️ Setup
+
+1. **Clone the repository**
+
+2. **Install Python dependencies**
+
+   Most dependencies are standard libraries.
+
+3. **Prepare your environment**
+
+   * Place your OpenAI API key in `utils/govkey.txt`
+   * Configure DB credentials in `configs/db_config.yml`
+   * Ensure `sources.dmp.sql` is in the root directory
+
+---
+
+## 🚀 Usage
+
+### Run the processor:
+
+```bash
+python main.py [OPTIONS]
 ```
 
 ### Options:
-- `-P` - Populate CSV files first before processing
-- `-s` - Process Senate bills
-- `-h` - Process House bills
+
+* `-P` – Populate the CSV files first
+* `-s` – Process Senate bills
+* `-h` – Process House bills
+* `-t` – Run in test mode (does not insert to DB or send emails)
 
 ### Examples:
 
 Process Senate bills:
-```
-python process_bills.py -s
+
+```bash
+python main.py -s
 ```
 
 Process House bills:
-```
-python process_bills.py -h
-```
 
-Populate CSV first, then proces senate bills:
-```
-python process_bills.py -P -s
+```bash
+python main.py -h
 ```
 
-## Main Features
+Populate CSV first and process:
 
-### URL Processing
-- Extracts URLs from CSV files
-- Handles both static and dynamic content loading
-- Special handling for congress.gov URLs
+```bash
+python main.py -P -s
+```
 
-### AI Content Generation
-- Uses OpenAI API to process legislative text
-- Generates press releases based on bill content
-- Adds source attribution to generated content
+---
 
-### Database Operations
-- Checks for duplicate entries
-- Inserts new stories with proper metadata
-- Loads SQL dumps for source information
+## 📟 Output
 
-### Logging and Reporting
-- Comprehensive logging system
-- Generates summary reports
-- Sends email notifications with operation results
+* ✅ AI-generated press releases
+* 📥 Entries in your MySQL database
+* 📧 Email reports summarizing each processing batch
+* 📄 Log files with full diagnostic info
 
-## Output
+---
 
-The script produces:
-1. Log files with detailed execution information
-2. Database entries for each processed bill
-3. Email summaries of the processing run
+## 💪 Troubleshooting
 
-## Troubleshooting
+* Check `debug.log` in the root directory
+* Verify your database and OpenAI key configurations
+* Ensure CSV files are properly formatted and encoded
 
-If you encounter issues:
-1. Check the log file in the root directory
-2. Verify your database connection settings
-3. Ensure your OpenAI API key is valid
-4. Confirm the CSV files are properly formatted
+---
 
-## Version
+## 📌 Version
 
-Current Version: 2.2.1 (04/07/2025)
+**Current Version:** 3.1.9
+**Last Updated:** August 2025
+
+---
