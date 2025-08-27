@@ -136,8 +136,20 @@ def get_primary_sponsor(is_senate, congress_num, bill_number):
         # second request
         name_url = sponsor[0]['url']
         directOrderID = requests.get(name_url, parameters)
-        sponsor_name = directOrderID.json()['member']['directOrderName']
-        last_name = directOrderID.json()['member']['lastName']
+
+        try:
+            data = directOrderID.json()
+        except ValueError:  # catches JSONDecodeError / RequestsJSONDecodeError
+            logging.info(f"Invalid or empty JSON for {name_url}. Body: {directOrderID.text[:200]!r}")
+            return "", ""
+
+        member = data.get('member')
+        if not member:
+            logging.info(f"No 'member' field in JSON for {name_url}: {data}")
+            return "", ""
+
+        sponsor_name = member.get('directOrderName', "")
+        last_name = member.get('lastName', "")
 
     except requests.exceptions.HTTPError as e:
         status = response.status_code
