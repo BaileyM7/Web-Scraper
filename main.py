@@ -52,7 +52,7 @@ def insert_story(filename, headline, body, a_id, sponsor_blob):
         today_str = datetime.now().strftime('%Y-%m-%d')
         cursor.execute(insert_sql, (
             filename,
-            "T70-Bailey-Bill",
+            "B-BillIntroBM",
             a_id,
             "Bailey Malota",
             headline,
