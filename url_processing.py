@@ -217,6 +217,7 @@ def add_note_to_url(url_id, message):
 def get_most_recent_bill_number(is_senate, congress=119):
     """
     Returns the highest-introduced bill number for the given chamber and congress session.
+    Uses pagination count to jump to the last page and find the true max bill number.
     """
     try:
         with open("utils/govkey.txt") as f:
@@ -224,11 +225,27 @@ def get_most_recent_bill_number(is_senate, congress=119):
 
         bill_type = "s" if is_senate else "hr"
         url = f"https://api.congress.gov/v3/bill/{congress}/{bill_type}"
+
+        # First request: get total count from pagination
         params = {
             "api_key": api_key,
-            "limit": 250  # max allowed
+            "limit": 1
         }
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        total_count = response.json().get("pagination", {}).get("count", 0)
 
+        if total_count == 0:
+            logging.info("No bills found in API response.")
+            return -1
+
+        # Second request: jump to the last page to find highest bill numbers
+        offset = max(0, total_count - 250)
+        params = {
+            "api_key": api_key,
+            "limit": 250,
+            "offset": offset
+        }
         response = requests.get(url, params=params)
         response.raise_for_status()
         bills = response.json().get("bills", [])
