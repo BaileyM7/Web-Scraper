@@ -181,15 +181,15 @@ def callApiWithText(text, client, url, is_senate, filename_only=False):
     Write a 300-word news story about this {'Senate' if is_senate else 'House'} bill, following these rules:
 
     Headline:
-    - Starts with {'Sen.' if is_senate else 'Rep.'} {last_name} [Last Name] Introduces [Bill Name]
+    - Starts with [Bill Name] Legislation by {'Sen.' if is_senate else 'Rep.'} {last_name} Analyzed
     (Do not include the bill number in the headline.)
 
     [NEWLINE SEPARATOR]
 
     First Paragraph:
-    - Start the first line with: {'Sen.' if is_senate else 'Rep.'} {fullname}
+    - Start the first line with: The [Bill Name], originally introduced by {'Sen.' if is_senate else 'Rep.'} {fullname}, on [introduction date from the bill summary], has been analyzed by the Congressional Research Service.
     - There must be a comma both before and after the party-state block — like: Sen. Tim Scott, R-SC,
-    - Summarize the bill’s purpose.
+    - Then summarize the bill's purpose.
 
 
     Body:
@@ -251,7 +251,6 @@ def callApiWithText(text, client, url, is_senate, filename_only=False):
 # gets the cosponsor summary (now without the use of the GPT api)
 def generate_cosponsor_summary(url, text, is_senate, bill_num):
 
-    intro_date = get_date_from_text(text, False)
     congress_num = 119
 
     # setting labels determined by is_senate
@@ -303,16 +302,16 @@ def generate_cosponsor_summary(url, text, is_senate, bill_num):
         honorific = "Sens." if is_senate else "Reps."
 
     # creating and formatting the total paragram
-    cosponsors_str = f"The bill ({label}{bill_num}) introduced on {intro_date} has {num_cosponsors} co-sponsors: {honorific} "
+    cosponsors_str = f"The bill ({label}{bill_num}) has {num_cosponsors} co-sponsors: {honorific} "
     count = 0
 
     if num_cosponsors == 0:
-        cosponsors_str = f"The bill ({label}{bill_num}) was introduced on {intro_date}."
+        cosponsors_str = f"The bill ({label}{bill_num}) has no co-sponsors."
         return cosponsors_str
-    
+
     if num_cosponsors == 1:
 
-        cosponsors_str = f"The bill ({label}{bill_num}) introduced on {intro_date} has {num_cosponsors} co-sponsor: {honorific} "
+        cosponsors_str = f"The bill ({label}{bill_num}) has {num_cosponsors} co-sponsor: {honorific} "
 
         try: 
             curr_cosponsor = requests.get(urls[0], parameters)
