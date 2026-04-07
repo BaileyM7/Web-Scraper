@@ -73,7 +73,11 @@ def getDynamicUrlText(url, is_senate):
         return None
 
     if response.status_code == 200:
-        data = response.json()
+        try:
+            data = response.json()
+        except requests.exceptions.JSONDecodeError:
+            logging.error(f"Empty or invalid JSON response for {url}")
+            return None
         versions = data.get("billText", {}).get("versions", [])
         for version in versions:
             for fmt in version.get("formats", []):
