@@ -266,7 +266,8 @@ def generate_cosponsor_summary(url, text, is_senate, bill_num):
                 api_key =  file.readline().strip()
     parameters = {
         "api_key": api_key,
-        "limit": 250
+        "limit": 250,
+        "format": "json"
     }
 
     # getting the json response

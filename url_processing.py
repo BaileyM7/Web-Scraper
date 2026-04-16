@@ -65,7 +65,7 @@ def getDynamicUrlText(url, is_senate):
     headers = {"X-API-Key": api_key}
 
     try:
-        response = requests.get(api_url, headers=headers)
+        response = requests.get(api_url, headers=headers, params={"format": "json"})
         response.raise_for_status()  # raises HTTPError for 4xx or 5xx
     except requests.exceptions.RequestException as e:
         logging.info(f"[ERROR] Failed to fetch bill text for {url}: {e}")
@@ -128,7 +128,8 @@ def get_primary_sponsor(is_senate, congress_num, bill_number):
 
     parameters = {
     "api_key": api_key,
-    "limit": 250
+    "limit": 250,
+    "format": "json"
     }
     
     try: 
@@ -233,7 +234,8 @@ def get_most_recent_bill_number(is_senate, congress=119):
         # First request: get total count from pagination
         params = {
             "api_key": api_key,
-            "limit": 1
+            "limit": 1,
+            "format": "json"
         }
         response = requests.get(url, params=params)
         response.raise_for_status()
@@ -248,7 +250,8 @@ def get_most_recent_bill_number(is_senate, congress=119):
         params = {
             "api_key": api_key,
             "limit": 250,
-            "offset": offset
+            "offset": offset,
+            "format": "json"
         }
         response = requests.get(url, params=params)
         response.raise_for_status()
