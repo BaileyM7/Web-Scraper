@@ -10,6 +10,25 @@ import logging
 arr = []
 invalidArr = []
 
+# Maps the 2-letter postal codes returned by the congress.gov API to full state
+STATE_NAMES = {
+    "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas",
+    "CA": "California", "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware",
+    "FL": "Florida", "GA": "Georgia", "HI": "Hawaii", "ID": "Idaho",
+    "IL": "Illinois", "IN": "Indiana", "IA": "Iowa", "KS": "Kansas",
+    "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland",
+    "MA": "Massachusetts", "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi",
+    "MO": "Missouri", "MT": "Montana", "NE": "Nebraska", "NV": "Nevada",
+    "NH": "New Hampshire", "NJ": "New Jersey", "NM": "New Mexico", "NY": "New York",
+    "NC": "North Carolina", "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma",
+    "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island", "SC": "South Carolina",
+    "SD": "South Dakota", "TN": "Tennessee", "TX": "Texas", "UT": "Utah",
+    "VT": "Vermont", "VA": "Virginia", "WA": "Washington", "WV": "West Virginia",
+    "WI": "Wisconsin", "WY": "Wyoming",
+    "DC": "District of Columbia", "PR": "Puerto Rico", "GU": "Guam",
+    "VI": "Virgin Islands", "AS": "American Samoa", "MP": "Northern Mariana Islands",
+}
+
 
 def load_pending_urls_from_db(is_senate):
     conn = get_db_connection()
@@ -174,7 +193,11 @@ def get_primary_sponsor(is_senate, congress_num, bill_number):
         logging.info(f"No sponsors found for {url}")
         return "", ""
 
-    sponsor_str += f"{sponsor_name}, {sponsor[0]['party']}-{sponsor[0]['state']},"
+    # Use the full state name; fall back to the raw postal code if it's unknown.
+    state_code = sponsor[0]['state']
+    state_full = STATE_NAMES.get(state_code, state_code)
+
+    sponsor_str += f"{sponsor_name}, {sponsor[0]['party']}-{state_full},"
 
     return sponsor_str, last_name
 
