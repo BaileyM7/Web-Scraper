@@ -4,7 +4,7 @@ from openai import OpenAI
 from urllib.parse import urlparse
 import platform
 from cleanup_text import cleanup_text
-from url_processing import get_primary_sponsor
+from url_processing import get_primary_sponsor, STATE_NAMES
 import requests
 
 global found_ids
@@ -318,7 +318,8 @@ def generate_cosponsor_summary(url, text, is_senate, bill_num):
             curr_cosponsor = requests.get(urls[0], parameters)
             member_data = curr_cosponsor.json().get("member", {})
             party = member_data.get("partyHistory", [{}])[0].get("partyAbbreviation", '')
-            state = member_data.get("terms", [{}])[-1].get("stateCode", '')  # get the latest term stateCode
+            state_code = member_data.get("terms", [{}])[-1].get("stateCode", '')  # get the latest term stateCode
+            state = STATE_NAMES.get(state_code, state_code)  # expand postal code to full state name
             name = member_data.get("directOrderName", '')
 
         # if it fails, try agian on next scrape
@@ -338,7 +339,8 @@ def generate_cosponsor_summary(url, text, is_senate, bill_num):
             curr_cosponsor = requests.get(url, parameters)
             member_data = curr_cosponsor.json().get("member", {})
             party = member_data.get("partyHistory", [{}])[0].get("partyAbbreviation", '')
-            state = member_data.get("terms", [{}])[-1].get("stateCode", '')  # get the latest term stateCode
+            state_code = member_data.get("terms", [{}])[-1].get("stateCode", '')  # get the latest term stateCode
+            state = STATE_NAMES.get(state_code, state_code)  # expand postal code to full state name
             name = member_data.get("directOrderName", '')
 
         # if it fails, try agian on next scrape
