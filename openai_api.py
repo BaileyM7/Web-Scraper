@@ -88,6 +88,11 @@ def clean_text(text):
     text = text.strip().replace('\"', "").replace('Headline:', "").replace('headline:', "")
     return text
 
+# Editorial style: bill titles in the hed and lede drop the trailing year,
+# e.g. "Children's Safe Welcome Act of 2026" -> "Children's Safe Welcome Act"
+def strip_title_year(text):
+    return re.sub(r'\b(Act)\s+of\s+(?:19|20)\d{2}\b', r'\1', text)
+
 def get_date_from_text(text, is_file):
     """
     Extract the introduction date after:
@@ -123,6 +128,16 @@ def get_date_from_text(text, is_file):
 #         return f"{yyyy[-2:]}{mm}{dd}"
 #     return None
 
+# Reverse map: full state name -> postal code, for tag lookups
+STATE_ABBRS = {name: abbr for abbr, name in STATE_NAMES.items()}
+
+# Longest names first so e.g. "Virgin Islands" wins over any shorter overlap
+_STATE_NAME_RE = re.compile(
+    r'\b[DRI]-('
+    + '|'.join(sorted((re.escape(n) for n in STATE_NAMES.values()), key=len, reverse=True))
+    + r')\b'
+)
+
 def extract_found_ids(press_release):
     global found_ids
     found_ids = {}
@@ -130,10 +145,11 @@ def extract_found_ids(press_release):
     # Match either [R-UT], [D-NY-14], or R-UT, D-TX (non-bracketed)
     pattern = re.compile(r'\b[DRI]-([A-Z]{2})(?:-\d{1,2})?\b')
 
+    cleaned = cleanup_text(press_release)
+    abbrs = set(pattern.findall(cleaned))
+    abbrs |= {STATE_ABBRS[name] for name in _STATE_NAME_RE.findall(cleaned)}
 
-    matches = pattern.findall(cleanup_text(press_release))
-
-    for abbr in set(matches):
+    for abbr in abbrs:
         if abbr in state_ids:
             found_ids[abbr] = state_ids[abbr]
     # print(found_ids)
@@ -227,6 +243,11 @@ def callApiWithText(text, client, url, is_senate, filename_only=False):
 
         headline = clean_text(headline_raw)
         press_body = clean_text(body_raw)
+
+        # Drop the title year in the hed and lede only; later body mentions keep it
+        headline = strip_title_year(headline)
+        first_para, sep, rest = press_body.partition('\n')
+        press_body = strip_title_year(first_para) + sep + rest
 
         press_release = f"WASHINGTON, {today_date} -- {press_body.strip()}"
 
