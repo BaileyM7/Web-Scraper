@@ -20,7 +20,8 @@ def send_summary_email(msg_txt, is_senate, logfile_path, to_addrs=None, from_add
             "bmalota08@gmail.com",
             "marlynvitin@yahoo.com",
             "struckvail@aol.com",
-            "malota.rc1@verizon.net"
+            "malota.rc1@verizon.net",
+            "shanskar@targetednews.com"
         ]
     elif isinstance(to_addrs, str):
         to_addrs = [to_addrs]
